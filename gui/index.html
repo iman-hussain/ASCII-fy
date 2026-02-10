@@ -72,6 +72,7 @@
   }
   .preview-tabs {
     display: flex; border-bottom: 1px solid var(--border);
+    background: var(--surface);
   }
   .preview-tab {
     flex: 1; padding: 8px; text-align: center; font-size: 0.82rem; font-weight: 600;
@@ -93,6 +94,12 @@
   .preview-content {
     display: flex; align-items: center; justify-content: center;
     min-height: 200px;
+  }
+  .preview-content.bundle-active {
+    align-items: stretch;
+  }
+  .preview-content.bundle-active .bundle-iframe {
+    flex: 1;
   }
 
   .webcam-bar {
@@ -149,7 +156,10 @@
   select:focus, input:focus { border-color: var(--accent); }
 
   input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
-  .range-value { color: var(--accent); font-weight: 600; font-size: 0.88rem; min-width: 36px; text-align: right; }
+  .range-value { color: var(--accent); font-weight: 600; font-size: 0.88rem; min-width: 36px; text-align: right; cursor: pointer; border-bottom: 1px dashed transparent; }
+  .range-value:hover { border-bottom-color: var(--accent); }
+  .range-value-input { width: 52px; background: var(--surface); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; text-align: center; font-size: 0.85rem; font-weight: 600; padding: 1px 2px; }
+  .tab-size { font-size: 0.72rem; opacity: 0.65; margin-left: 3px; font-weight: 400; }
 
   input[type="color"] {
     width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px;
@@ -205,6 +215,64 @@
   .results.active { display: block; }
   .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* ── Preview BG bar ─────────────────────────────────── */
+  .preview-bg-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .preview-bg-bar .swatch-btn {
+    width: 22px; height: 22px; border-radius: 4px; border: 2px solid transparent;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .preview-bg-bar .swatch-btn:hover,
+  .preview-bg-bar .swatch-btn.active { border-color: var(--accent); }
+  .preview-bg-bar .swatch-btn.checkerboard {
+    background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 10px 10px;
+  }
+  .preview-bg-bar input[type="color"] { width: 22px; height: 22px; padding: 0; border-radius: 4px; border: 1px solid var(--border); }
+
+  /* ── Palette swatches ────────────────────────────────── */
+  .palette-swatch-bar {
+    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;
+  }
+  .palette-swatch-bar .swatch {
+    width: 16px; height: 16px; border-radius: 2px;
+    border: 1px solid rgba(255,255,255,.12);
+  }
+
+  /* ── Frame preview overlay ─────────────────────────── */
+  .frame-preview-box {
+    width: 100%; overflow-x: auto; padding: 8px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 5px; line-height: 1.0;
+    white-space: pre; background: #000;
+    border-radius: var(--radius);
+  }
+  .bundle-viewer {
+    width: 100%; max-height: 520px; overflow: auto; padding: 12px;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 0.72rem; line-height: 1.35;
+    white-space: pre-wrap; word-break: break-all;
+    background: #0d0d0d; color: #b0b0b0;
+    border-radius: var(--radius); tab-size: 2;
+  }
+  .bundle-viewer-empty { color: var(--muted); font-style: italic; }
+  .bundle-iframe {
+    width: 100%; height: 100%; min-height: 520px;
+    border: none; border-radius: 0; display: block;
+    background: #111;
+  }
+  .show-raw-js-box {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-left: auto; font-size: .78rem; color: var(--fg);
+    cursor: pointer; user-select: none;
+  }
+  .show-raw-js-box input { cursor: pointer; }
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -225,8 +293,10 @@
 
     <div class="preview-box" id="previewBox">
       <div class="preview-tabs hidden" id="previewTabs">
-        <button class="preview-tab active" id="tabOriginal" type="button">Original</button>
-        <button class="preview-tab" id="tabConverted" type="button" disabled>Converted</button>
+        <button class="preview-tab active" id="tabOriginal" type="button">Original<span class="tab-size" id="tabOriginalSize"></span></button>
+        <button class="preview-tab" id="tabConvertedGif" type="button" disabled>GIF<span class="tab-size" id="tabGifSize"></span></button>
+        <button class="preview-tab" id="tabConvertedBundle" type="button" disabled>bundle.js<span class="tab-size" id="tabBundleSize"></span></button>
+        <button class="preview-tab" id="tabFramePreview" type="button" disabled>Frame</button>
         <button class="undo-btn hidden" id="undoBtn" type="button" disabled title="Revert to previous GIF">↩ Undo</button>
       </div>
       <div class="preview-content" id="previewContent">
@@ -245,7 +315,23 @@
         </div>
         <video class="preview-video hidden" id="previewVideo" muted loop playsinline controls></video>
         <img class="preview-gif hidden" id="previewGif" alt="Converted output" />
+        <iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
+        <pre class="bundle-viewer hidden" id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
+        <div class="frame-preview-box hidden" id="framePreview"></div>
       </div>
+    </div>
+
+    <div class="preview-bg-bar hidden" id="previewBgBar">
+      <span>Preview BG:</span>
+      <button class="swatch-btn" data-bg="#000000" style="background:#000000" title="Black"></button>
+      <button class="swatch-btn" data-bg="#ffffff" style="background:#ffffff" title="White"></button>
+      <button class="swatch-btn" data-bg="#1a1a2e" style="background:#1a1a2e" title="Dark blue"></button>
+      <button class="swatch-btn" data-bg="#808080" style="background:#808080" title="Grey"></button>
+      <button class="swatch-btn checkerboard" data-bg="checkerboard" title="Checkerboard"></button>
+      <input type="color" id="previewBgCustom" value="#000000" title="Custom colour" />
+      <label class="show-raw-js-box hidden" id="showRawJsBox">
+        <input type="checkbox" id="showRawJs" /> show raw .js
+      </label>
     </div>
 
     <div class="webcam-bar hidden" id="webcamBar">
@@ -295,13 +381,14 @@
             <option value="palette">Palette</option>
             <option value="kmeans">K-Means</option>
             <option value="mono">Monochrome</option>
+            <option value="grayscale">Grayscale</option>
           </select>
         </div>
       </div>
       <!-- Palette preset -->
       <div class="row" id="paletteRow">
         <label for="palette">Palette</label>
-        <div class="control">
+        <div class="control" style="flex-direction:column; align-items:stretch; gap:4px">
           <select id="palette">
             <option value="realistic">Realistic</option>
             <option value="grayscale">Grayscale</option>
@@ -310,6 +397,7 @@
             <option value="neon">Neon</option>
             <option value="forest">Forest</option>
           </select>
+          <div class="palette-swatch-bar" id="paletteSwatch"></div>
         </div>
       </div>
       <!-- Depth -->
@@ -346,18 +434,7 @@
           </select>
         </div>
       </div>
-      <!-- Player background (non-mono) -->
-      <div class="row" id="playerBgRow">
-        <label>Player BG</label>
-        <div class="control">
-          <input type="color" id="playerBg" value="#000000" />
-          <span class="range-value" id="playerBgVal">#000000</span>
-          <div class="checkbox-row" style="margin-left:8px">
-            <input type="checkbox" id="autoBg" />
-            <span>Auto</span>
-          </div>
-        </div>
-      </div>
+
       <!-- Trim -->
       <div class="row">
         <label>Trim (sec)</label>
@@ -395,7 +472,8 @@
               <option value="keep">Freeze background</option>
             </select>
           </div>
-          <div class="control hidden" id="fgThresholdRow" style="gap:8px; width:100%">
+          <div class="control hidden" id="fgThresholdRow" style="gap:8px; width:100%; align-items:center">
+            <span style="font-size:0.75rem;color:var(--muted);min-width:60px" id="fgThresholdLabel">Sensitivity</span>
             <input type="range" id="fgThreshold" min="5" max="80" value="20" step="1" />
             <span class="range-value" id="fgThresholdVal">20</span>
           </div>
@@ -412,8 +490,12 @@
       Estimated bundle: <span class="val" id="estimateVal">—</span>
     </div>
 
-    <!-- Convert button -->
-    <button class="btn btn-primary" id="convertBtn" disabled>▶ Convert</button>
+    <!-- Action buttons -->
+    <div style="display:flex; gap:8px">
+      <button class="btn btn-primary" id="convertBtn" disabled style="flex:1">▶ Convert</button>
+      <button class="btn btn-primary" id="stopBtn" style="flex:1; display:none; background:var(--danger)">■ Stop</button>
+      <button class="btn btn-secondary" id="previewFrameBtn" disabled title="Preview one frame with current settings">👁 Preview</button>
+    </div>
 
     <!-- Progress -->
     <div class="progress-area" id="progressArea">
@@ -443,7 +525,9 @@
   const previewBox    = $('#previewBox');
   const previewTabs   = $('#previewTabs');
   const tabOriginal   = $('#tabOriginal');
-  const tabConverted  = $('#tabConverted');
+  const tabConvertedGif   = $('#tabConvertedGif');
+  const tabConvertedBundle = $('#tabConvertedBundle');
+  const bundleViewer       = $('#bundleViewer');
   const previewContent = $('#previewContent');
   const dropZone      = $('#dropZone');
   const fileInput     = $('#fileInput');
@@ -461,9 +545,13 @@
   const infoSize      = $('#infoSize');
   const inputSelect   = $('#inputSelect');
   const convertBtn    = $('#convertBtn');
+  const stopBtn       = $('#stopBtn');
   const progressArea  = $('#progressArea');
   const progressFill  = $('#progressFill');
   const progressLabel = $('#progressLabel');
+  const tabOriginalSize = $('#tabOriginalSize');
+  const tabGifSize      = $('#tabGifSize');
+  const tabBundleSize   = $('#tabBundleSize');
   const logArea       = $('#logArea');
   const logBox        = $('#logBox');
   const resultsArea   = $('#resultsArea');
@@ -471,6 +559,12 @@
   const undoBtn       = $('#undoBtn');
   const estimateArea  = $('#estimateArea');
   const estimateVal   = $('#estimateVal');
+  const previewBgBar  = $('#previewBgBar');
+  const previewBgCustom = $('#previewBgCustom');
+  const paletteSwatch = $('#paletteSwatch');
+  const framePreview  = $('#framePreview');
+  const tabFramePreview = $('#tabFramePreview');
+  const previewFrameBtn = $('#previewFrameBtn');
 
   const widthSlider   = $('#width');
   const widthVal      = $('#widthVal');
@@ -483,14 +577,13 @@
   const depthValEl    = $('#depthVal');
   const monoFgRow     = $('#monoFgRow');
   const monoBgRow     = $('#monoBgRow');
-  const playerBgRow   = $('#playerBgRow');
+  const bundleIframe  = $('#bundleIframe');
+  const showRawJsBox  = $('#showRawJsBox');
+  const showRawJsChk  = $('#showRawJs');
   const fgInput       = $('#fg');
   const fgValEl       = $('#fgVal');
   const bgInput       = $('#bg');
   const bgValEl       = $('#bgVal');
-  const playerBgInput = $('#playerBg');
-  const playerBgVal   = $('#playerBgVal');
-  const autoBgCheck   = $('#autoBg');
   const fgEnable      = $('#fgEnable');
   const fgOptions     = $('#fgOptions');
   const fgMode        = $('#fgMode');
@@ -501,6 +594,7 @@
   const fgBgInput     = $('#fgBg');
   const fgBgVal       = $('#fgBgVal');
   const fgThresholdRow = $('#fgThresholdRow');
+  const fgThresholdLabel = $('#fgThresholdLabel');
 
   let selectedPath    = null;
   let videoMeta       = null;
@@ -508,6 +602,10 @@
   let blobUrl         = null;
   let convertedGifUrl = null;
   let convertedGifBlob = null;   // blob URL of current converted GIF
+  let convertedBundleUrl = null;  // URL for the bundle.js file
+  let bundleTextCache = null;     // cached bundle.js content
+  let conversionStartTime = null;
+  let isConverting = false;
   let lastConvertResult = null;  // last conversion done data
   let lastConvertOptions = null;
   let estimateScale = 1;
@@ -517,6 +615,18 @@
   let recordedChunks = [];
   let recordTimer = null;
   let recordStartTime = 0;
+
+  /* ── Tab size labels ───────────────────────────────── */
+  function updateTabSizes() {
+    tabOriginalSize.textContent = videoFileSize ? '(' + formatBytes(videoFileSize) + ')' : '';
+    if (lastConvertResult) {
+      tabGifSize.textContent = lastConvertResult.gifSize ? '(' + formatBytes(lastConvertResult.gifSize) + ')' : '';
+      tabBundleSize.textContent = lastConvertResult.bundleSize ? '(' + formatBytes(lastConvertResult.bundleSize) + ')' : '';
+    } else {
+      tabGifSize.textContent = '';
+      tabBundleSize.textContent = '';
+    }
+  }
 
   /* ── Load input/ file list ─────────────────────────── */
   (async function loadFiles() {
@@ -579,13 +689,28 @@
     estimateArea.classList.add('hidden');
     resultsArea.classList.remove('active');
     undoBtn.classList.add('hidden');
+    resetPreviewBg();
     resetSliderMaxes();
+    updateTabSizes();
     convertBtn.disabled = true;
+    previewFrameBtn.disabled = true;
     inputSelect.value = '';
     previewVideo.src = '';
     tabOriginal.classList.add('active');
-    tabConverted.classList.remove('active');
-    tabConverted.disabled = true;
+    tabConvertedGif.classList.remove('active');
+    tabConvertedGif.disabled = true;
+    tabConvertedBundle.classList.remove('active');
+    tabConvertedBundle.disabled = true;
+    tabFramePreview.classList.remove('active');
+    tabFramePreview.disabled = true;
+    framePreview.classList.add('hidden');
+    bundleViewer.classList.add('hidden');
+    bundleIframe.classList.add('hidden');
+    bundleIframe.src = 'about:blank';
+    bundleViewer.innerHTML = '<span class="bundle-viewer-empty">No bundle yet.</span>';
+    framePreviewHtml = null;
+    convertedBundleUrl = null;
+    bundleTextCache = null;
 
     stopWebcam();
   }
@@ -635,7 +760,8 @@
       dropZone.classList.add('hidden');
       previewGif.classList.add('hidden');
       previewTabs.classList.add('hidden');
-      tabConverted.disabled = true;
+      tabConvertedGif.disabled = true;
+      tabConvertedBundle.disabled = true;
       webcamBar.classList.remove('hidden');
       recordStartBtn.disabled = false;
       recordStopBtn.disabled = true;
@@ -653,9 +779,10 @@
     mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const file = new File([blob], 'webcam.webm', { type: 'video/webm' });
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const file = new File([blob], 'webcam_' + ts + '.webm', { type: 'video/webm' });
       stopWebcam();
-      await handleFile(file);
+      await handleFile(file, true);
     };
     mediaRecorder.start();
     recordStartTime = Date.now();
@@ -676,7 +803,7 @@
     }
   });
 
-  async function handleFile(file) {
+  async function handleFile(file, forceUpload) {
     videoMeta       = null;
     videoFileSize   = file.size;
     convertedGifUrl = null;
@@ -694,7 +821,7 @@
 
     /* Try resolving by filename first (may already be in input/) */
     let resolved = false;
-    try {
+    if (!forceUpload) try {
       const probeRes = await fetch('/api/probe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -709,6 +836,7 @@
         updateInfoBar('original');
         updateEstimate();
         convertBtn.disabled = false;
+        previewFrameBtn.disabled = false;
         resolved = true;
       }
     } catch {}
@@ -745,8 +873,11 @@
     dropZone.classList.add('hidden');
     previewGif.classList.add('hidden');
     previewTabs.classList.add('hidden');
-    tabConverted.disabled = true;
+    tabConvertedGif.disabled = true;
+    tabConvertedBundle.disabled = true;
     convertedGifUrl = null;
+    convertedBundleUrl = null;
+    bundleTextCache = null;
   }
 
   async function probeFile(path) {
@@ -763,12 +894,14 @@
 
       if (!data.ok && !data.resolvedPath) {
         convertBtn.disabled = true;
+        previewFrameBtn.disabled = true;
         return;
       }
       clampSlidersToSource();
       updateInfoBar('original');
       updateEstimate();
       convertBtn.disabled = false;
+      previewFrameBtn.disabled = false;
     } catch {
       videoMeta = null;
     }
@@ -824,6 +957,7 @@
     } else {
       return;
     }
+    updateTabSizes();
   }
 
   /* ── Estimate bundle size ──────────────────────────── */
@@ -854,10 +988,45 @@
   widthSlider.oninput = () => { widthVal.textContent = widthSlider.value; updateEstimate(); };
   fpsSlider.oninput   = () => { fpsVal.textContent   = fpsSlider.value;   updateEstimate(); };
   depthSlider.oninput = () => { depthValEl.textContent = depthSlider.value; updateEstimate(); };
+
+  /* ── Editable slider values (click to type) ─────────── */
+  function makeEditable(spanEl, sliderEl, opts = {}) {
+    spanEl.addEventListener('click', () => {
+      if (spanEl.querySelector('input')) return;
+      const cur = sliderEl.value;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'range-value-input';
+      inp.value = cur;
+      inp.min = opts.min ?? sliderEl.min;
+      inp.max = opts.max ?? sliderEl.max;
+      inp.step = sliderEl.step || 1;
+      spanEl.textContent = '';
+      spanEl.appendChild(inp);
+      inp.focus();
+      inp.select();
+      const commit = () => {
+        let v = parseInt(inp.value);
+        const lo = parseInt(inp.min), hi = parseInt(inp.max);
+        if (isNaN(v)) v = parseInt(cur);
+        v = Math.max(lo, Math.min(hi, v));
+        sliderEl.value = v;
+        spanEl.textContent = v;
+        sliderEl.dispatchEvent(new Event('input'));
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+        if (e.key === 'Escape') { spanEl.textContent = cur; }
+      });
+    });
+  }
+  makeEditable(widthVal, widthSlider);
+  makeEditable(fpsVal, fpsSlider);
+  makeEditable(depthValEl, depthSlider);
+  makeEditable(fgThresholdVal, fgThreshold);
   fgInput.oninput     = () => { fgValEl.textContent   = fgInput.value; };
   bgInput.oninput     = () => { bgValEl.textContent   = bgInput.value; };
-  playerBgInput.oninput = () => { playerBgVal.textContent = playerBgInput.value; };
-  autoBgCheck.onchange  = () => { playerBgInput.disabled = autoBgCheck.checked; };
   fgThreshold.oninput   = () => { fgThresholdVal.textContent = fgThreshold.value; };
   fgBgInput.oninput     = () => { fgBgVal.textContent = fgBgInput.value; };
   fgEnable.onchange     = () => { updateForegroundFields(); };
@@ -870,41 +1039,346 @@
   function updateModeFields() {
     const m = modeSelect.value;
     paletteRow.classList.toggle('hidden', m !== 'palette');
-    depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans');
+    depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans' && m !== 'grayscale');
     monoFgRow.classList.toggle('hidden', m !== 'mono');
     monoBgRow.classList.toggle('hidden', m !== 'mono');
-    playerBgRow.classList.toggle('hidden', m === 'mono');
+    // Update palette swatches visibility
+    if (m === 'palette') updatePaletteSwatches();
+    else paletteSwatch.innerHTML = '';
   }
   updateModeFields();
 
   function updateForegroundFields() {
     const enabled = fgEnable.checked;
+    const mode = fgMode.value;
     fgOptions.classList.toggle('hidden', !enabled);
     fgThresholdRow.classList.toggle('hidden', !enabled);
     const showBg = enabled && fgBackground.value === 'solid';
     fgBgRow.classList.toggle('hidden', !showBg);
+
+    // Mode-specific threshold label and range
+    if (mode === 'ml') {
+      fgThresholdLabel.textContent = 'Confidence';
+      fgThreshold.min = 10;
+      fgThreshold.max = 90;
+      // Set a sensible ML default if the value looks like a motion default
+      if (parseInt(fgThreshold.value) < 30) {
+        fgThreshold.value = 50;
+        fgThresholdVal.textContent = '50';
+      }
+    } else {
+      fgThresholdLabel.textContent = 'Sensitivity';
+      fgThreshold.min = 5;
+      fgThreshold.max = 80;
+    }
   }
   updateForegroundFields();
+
+  /* ── Preview background colour ─────────────────────── */
+  const CHECKERBOARD_CSS = 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 16px 16px';
+  let currentPreviewBg = '#000000';
+
+  previewBgBar.addEventListener('click', (e) => {
+    const btn = e.target.closest('.swatch-btn');
+    if (!btn) return;
+    previewBgBar.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyPreviewBg(btn.dataset.bg);
+  });
+  previewBgCustom.addEventListener('input', () => {
+    previewBgBar.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
+    applyPreviewBg(previewBgCustom.value);
+  });
+
+  function applyPreviewBg(bg) {
+    currentPreviewBg = bg;
+    const targets = [previewGif, previewContent, framePreview, bundleViewer];
+    if (bg === 'checkerboard') {
+      targets.forEach(el => el.style.background = CHECKERBOARD_CSS);
+    } else {
+      targets.forEach(el => el.style.background = bg);
+    }
+    // Also set iframe player background via postMessage
+    try { bundleIframe.contentWindow.postMessage({ type: 'set-bg', color: bg === 'checkerboard' ? '#111' : bg }, '*'); } catch {}
+  }
+  function resetPreviewBg() {
+    [previewGif, previewContent, framePreview, bundleViewer].forEach(el => el.style.background = '');
+    previewBgBar.classList.add('hidden');
+    showRawJsBox.classList.add('hidden');
+  }
+  function showPreviewBgBar() {
+    previewBgBar.classList.remove('hidden');
+    // Auto-set first active swatch
+    const first = previewBgBar.querySelector('.swatch-btn');
+    if (first && !previewBgBar.querySelector('.swatch-btn.active')) {
+      first.classList.add('active');
+    }
+  }
+
+  /* ── Palette swatch preview ────────────────────────── */
+  const GRADIENT_PRESETS = {
+    realistic: [[12,18,30],[40,80,140],[120,160,120],[200,170,120],[220,220,210]],
+    grayscale: [[0,0,0],[255,255,255]],
+    sunset:    [[255,94,58],[255,149,0],[255,204,0]],
+    ocean:     [[0,24,72],[0,118,255],[0,217,255]],
+    neon:      [[57,255,20],[0,255,255],[255,0,255]],
+    forest:    [[16,64,32],[34,139,34],[154,205,50]],
+  };
+
+  function interpolatePalette(stops, count) {
+    const pal = [];
+    const n = Math.max(2, count);
+    const segs = stops.length - 1;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const seg = Math.min(segs - 1, Math.floor(t * segs));
+      const lt = (t - seg / segs) * segs;
+      const a = stops[seg], b = stops[seg + 1];
+      pal.push([
+        Math.round(a[0] + (b[0] - a[0]) * lt),
+        Math.round(a[1] + (b[1] - a[1]) * lt),
+        Math.round(a[2] + (b[2] - a[2]) * lt),
+      ]);
+    }
+    return pal;
+  }
+
+  function updatePaletteSwatches() {
+    paletteSwatch.innerHTML = '';
+    const name = $('#palette').value;
+    const depth = parseInt($('#depth').value);
+    const stops = GRADIENT_PRESETS[name];
+    if (!stops) return;
+    let colors;
+    if (name === 'grayscale') {
+      colors = [];
+      for (let i = 0; i < depth; i++) {
+        const v = Math.round((i / (depth - 1)) * 255);
+        colors.push([v, v, v]);
+      }
+    } else {
+      colors = interpolatePalette(stops, depth);
+    }
+    colors.forEach(([r, g, b]) => {
+      const s = document.createElement('span');
+      s.className = 'swatch';
+      s.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+      s.title = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+      paletteSwatch.appendChild(s);
+    });
+  }
+
+  $('#palette').addEventListener('change', updatePaletteSwatches);
+  depthSlider.addEventListener('input', updatePaletteSwatches);
+  updatePaletteSwatches();
+
+  /* ── Single-frame preview ──────────────────────────── */
+  let framePreviewHtml = null;
+
+  previewFrameBtn.addEventListener('click', async () => {
+    if (!selectedPath) return;
+    previewFrameBtn.disabled = true;
+    previewFrameBtn.textContent = '⏳ Loading…';
+    logArea.classList.add('active');
+    appendLog('Generating single-frame preview…');
+
+    const mode = modeSelect.value;
+    const opts = {
+      inputPath: selectedPath,
+      width:     parseInt(widthSlider.value),
+      mode,
+      charMode:  $('#charMode').value,
+      depth:     parseInt($('#depth').value),
+      palette:   $('#palette').value,
+      fg:        fgInput.value,
+      bg:        bgInput.value,
+    };
+
+    try {
+      const res = await fetch('/api/preview-frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        framePreviewHtml = data.html;
+        framePreview.innerHTML = data.html;
+        tabFramePreview.disabled = false;
+        previewTabs.classList.remove('hidden');
+        tabFramePreview.click();
+        appendLog('Frame preview ready!', 'success');
+      } else {
+        appendLog('Preview error: ' + data.error, 'error');
+      }
+    } catch (err) {
+      appendLog('Preview fetch error: ' + err.message, 'error');
+    }
+    previewFrameBtn.disabled = false;
+    previewFrameBtn.textContent = '👁 Preview';
+  });
+
+  tabFramePreview.addEventListener('click', () => {
+    if (!framePreviewHtml) return;
+    tabFramePreview.classList.add('active');
+    tabOriginal.classList.remove('active');
+    tabConvertedGif.classList.remove('active');
+    tabConvertedBundle.classList.remove('active');
+    previewContent.classList.remove('bundle-active');
+    previewVideo.classList.add('hidden');
+    previewGif.classList.add('hidden');
+    bundleViewer.classList.add('hidden');
+    bundleIframe.classList.add('hidden');
+    framePreview.classList.remove('hidden');
+    previewVideo.pause();
+    resultsArea.classList.remove('active');
+    showPreviewBgBar();
+    showRawJsBox.classList.add('hidden');
+    applyPreviewBg(currentPreviewBg);
+  });
 
   /* ── Preview tabs ──────────────────────────────────── */
   tabOriginal.addEventListener('click', () => {
     tabOriginal.classList.add('active');
-    tabConverted.classList.remove('active');
+    tabConvertedGif.classList.remove('active');
+    tabConvertedBundle.classList.remove('active');
+    tabFramePreview.classList.remove('active');
+    previewContent.classList.remove('bundle-active');
     previewVideo.classList.remove('hidden');
     previewGif.classList.add('hidden');
+    bundleViewer.classList.add('hidden');
+    bundleIframe.classList.add('hidden');
+    framePreview.classList.add('hidden');
     previewVideo.play().catch(() => {});
     updateInfoBar('original');
     resultsArea.classList.remove('active');
+    resetPreviewBg();
   });
-  tabConverted.addEventListener('click', () => {
+  tabConvertedGif.addEventListener('click', () => {
     if (!convertedGifBlob) return;
-    tabConverted.classList.add('active');
+    tabConvertedGif.classList.add('active');
     tabOriginal.classList.remove('active');
+    tabConvertedBundle.classList.remove('active');
+    tabFramePreview.classList.remove('active');
+    previewContent.classList.remove('bundle-active');
     previewGif.classList.remove('hidden');
     previewVideo.classList.add('hidden');
+    bundleViewer.classList.add('hidden');
+    bundleIframe.classList.add('hidden');
+    framePreview.classList.add('hidden');
     previewVideo.pause();
     updateInfoBar('converted');
     if (lastConvertResult) resultsArea.classList.add('active');
+    showPreviewBgBar();
+    applyPreviewBg(currentPreviewBg);
+  });
+  function buildBundlePreviewHtml(bundleUrl) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ascii-fy bundle preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #111; }
+    #player { transform-origin: top left; }
+    #player pre { margin: 0; padding: 0 !important; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <script src="${bundleUrl}"><\/script>
+  <script>
+    (function() {
+      var player = null;
+      var el = document.getElementById('player');
+      function setBg(color) {
+        var c = color || '#111';
+        document.body.style.background = c;
+        if (player && player._pre) { player._pre.style.background = c; }
+      }
+      function fitToWindow() {
+        if (!player || !player._pre) return;
+        // Reset scale to measure natural size
+        el.style.transform = 'none';
+        var natW = player._pre.scrollWidth;
+        var natH = player._pre.scrollHeight;
+        if (!natW || !natH) return;
+        var scaleX = window.innerWidth / natW;
+        var scaleY = window.innerHeight / natH;
+        var scale = Math.min(scaleX, scaleY);
+        el.style.transform = 'scale(' + scale + ')';
+      }
+      window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'set-bg') setBg(e.data.color);
+      });
+      window.addEventListener('resize', fitToWindow);
+      AsciiPlayer.fromCompressed(__ASCII_COMPRESSED__).then(function(p) {
+        player = p;
+        player.mount(el);
+        if (player._pre) { player._pre.style.padding = '0'; player._pre.style.margin = '0'; }
+        player.play();
+        requestAnimationFrame(function() { requestAnimationFrame(fitToWindow); });
+      });
+    })();
+  <\/script>
+</body>
+</html>`;
+  }
+
+  function loadBundlePreview() {
+    if (!convertedBundleUrl) return;
+    if (bundleIframe.dataset.bundleUrl !== convertedBundleUrl) {
+      bundleIframe.dataset.bundleUrl = convertedBundleUrl;
+      bundleIframe.srcdoc = buildBundlePreviewHtml(convertedBundleUrl);
+      bundleIframe.onload = () => applyPreviewBg(currentPreviewBg);
+    }
+  }
+
+  tabConvertedBundle.addEventListener('click', async () => {
+    if (!convertedBundleUrl) return;
+    tabConvertedBundle.classList.add('active');
+    tabOriginal.classList.remove('active');
+    tabConvertedGif.classList.remove('active');
+    tabFramePreview.classList.remove('active');
+    previewContent.classList.add('bundle-active');
+    previewVideo.classList.add('hidden');
+    previewGif.classList.add('hidden');
+    framePreview.classList.add('hidden');
+    previewVideo.pause();
+    if (lastConvertResult) resultsArea.classList.add('active');
+    showPreviewBgBar();
+    showRawJsBox.classList.remove('hidden');
+
+    if (showRawJsChk.checked) {
+      // Show raw JS text
+      bundleIframe.classList.add('hidden');
+      bundleViewer.classList.remove('hidden');
+      if (!bundleTextCache) {
+        try {
+          bundleViewer.textContent = 'Loading bundle.js…';
+          const resp = await fetch(convertedBundleUrl + '?t=' + Date.now());
+          bundleTextCache = await resp.text();
+        } catch (err) {
+          bundleTextCache = '// Failed to load bundle.js: ' + err.message;
+        }
+      }
+      bundleViewer.textContent = bundleTextCache;
+    } else {
+      // Show animation iframe
+      bundleViewer.classList.add('hidden');
+      bundleIframe.classList.remove('hidden');
+      loadBundlePreview();
+    }
+    applyPreviewBg(currentPreviewBg);
+  });
+
+  /* ── Show raw .js toggle ───────────────────────────── */
+  showRawJsChk.addEventListener('change', () => {
+    if (tabConvertedBundle.classList.contains('active')) {
+      tabConvertedBundle.click();
+    }
   });
 
   /* ── Undo GIF ──────────────────────────────────────── */
@@ -921,12 +1395,22 @@
     undoBtn.disabled = gifHistory.length === 0;
   });
 
-  /* ── Convert ───────────────────────────────────────── */
+  /* ── Convert / Stop ─────────────────────────────────── */
   convertBtn.addEventListener('click', startConvert);
+  stopBtn.addEventListener('click', async () => {
+    try { await fetch('/api/abort', { method: 'POST' }); } catch {}
+    stopBtn.disabled = true;
+    stopBtn.textContent = 'Stopping…';
+  });
 
   async function startConvert() {
     if (!selectedPath) return;
-    convertBtn.disabled = true;
+    convertBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    stopBtn.disabled = false;
+    stopBtn.textContent = '■ Stop';
+    isConverting = true;
+    conversionStartTime = Date.now();
 
     progressArea.classList.add('active');
     progressFill.style.width = '0%';
@@ -946,7 +1430,7 @@
       palette:  $('#palette').value,
       fg:       fgInput.value,
       bg:       bgInput.value,
-      playerBg: mode === 'mono' ? undefined : (autoBgCheck.checked ? 'auto' : playerBgInput.value),
+      playerBg: mode === 'mono' ? undefined : 'auto',
       start:    parseFloat($('#start').value) || undefined,
       end:      parseFloat($('#end').value)   || undefined,
       skipGif:  $('#skipGif').checked,
@@ -975,6 +1459,10 @@
       });
     } catch (err) {
       appendLog('Fetch error: ' + err.message, 'error');
+      isConverting = false;
+      conversionStartTime = null;
+      convertBtn.style.display = '';
+      stopBtn.style.display = 'none';
       convertBtn.disabled = false;
     }
   }
@@ -986,7 +1474,21 @@
     const d = JSON.parse(e.data);
     if (d.percent != null) {
       progressFill.style.width = d.percent + '%';
-      progressLabel.textContent = 'Frame ' + d.frame + '/' + d.total + ' (' + d.percent + '%)';
+      let label = 'Frame ' + d.frame + '/' + d.total + ' (' + d.percent + '%)';
+      // ETA calculation
+      if (conversionStartTime && d.frame > 1 && d.total) {
+        const elapsed = (Date.now() - conversionStartTime) / 1000;
+        const perFrame = elapsed / (d.frame - 1);
+        const remaining = Math.max(0, (d.total - d.frame) * perFrame);
+        if (remaining < 60) {
+          label += ' — ~' + Math.ceil(remaining) + 's left';
+        } else {
+          const m = Math.floor(remaining / 60);
+          const s = Math.ceil(remaining % 60);
+          label += ' — ~' + m + 'm ' + s + 's left';
+        }
+      }
+      progressLabel.textContent = label;
     } else {
       progressLabel.textContent = 'Frame ' + d.frame + '…';
     }
@@ -1002,6 +1504,15 @@
       progressFill.style.width = '100%';
       progressLabel.textContent = 'Done!';
       appendLog('Conversion complete!', 'success');
+
+      lastConvertResult = d;
+      convertedBundleUrl = d.bundleUrl || null;
+      bundleTextCache = null;           // force re-fetch on next view
+      bundleIframe.src = 'about:blank'; // reset iframe for fresh load
+      bundleIframe.removeAttribute('srcdoc');
+      bundleIframe.dataset.bundleUrl = '';
+      previewTabs.classList.remove('hidden');
+      tabConvertedBundle.disabled = !convertedBundleUrl;
 
       /* Show converted GIF in preview */
       if (d.gifUrl) {
@@ -1019,37 +1530,49 @@
           convertedGifBlob = d.gifUrl;
         }
 
-        lastConvertResult = d;
         convertedGifUrl = d.gifUrl;
         previewGif.src = convertedGifBlob;
-        previewTabs.classList.remove('hidden');
-        tabConverted.disabled = false;
+        tabConvertedGif.disabled = false;
+      }
 
-        if (lastConvertOptions && d.bundleSize && (d.totalFrames || d.frames)) {
-          const base = estimateBundleBase({
-            w: d.width,
-            h: d.height,
-            frames: d.totalFrames || d.frames,
-            mode: lastConvertOptions.mode,
-          });
-          if (base > 0) {
-            const ratio = d.bundleSize / base;
-            estimateScale = Math.max(0.5, Math.min(4, ratio));
-            updateEstimate();
-          }
+      if (lastConvertOptions && d.bundleSize && (d.totalFrames || d.frames)) {
+        const base = estimateBundleBase({
+          w: d.width,
+          h: d.height,
+          frames: d.totalFrames || d.frames,
+          mode: lastConvertOptions.mode,
+        });
+        if (base > 0) {
+          const ratio = d.bundleSize / base;
+          estimateScale = Math.max(0.5, Math.min(4, ratio));
+          updateEstimate();
         }
+      }
 
-        // Show/hide undo button
-        undoBtn.classList.toggle('hidden', gifHistory.length === 0);
-        undoBtn.disabled = gifHistory.length === 0;
+      // Show/hide undo button
+      undoBtn.classList.toggle('hidden', gifHistory.length === 0);
+      undoBtn.disabled = gifHistory.length === 0;
 
-        showResults(d);
-        /* Auto-switch to converted tab */
-        tabConverted.click();
+      showResults(d);
+      updateTabSizes();
+      /* Auto-switch to GIF tab if available, otherwise bundle.
+         Always re-click to force content refresh with new data. */
+      if (!tabConvertedGif.disabled) {
+        tabConvertedGif.click();
+      } else if (!tabConvertedBundle.disabled) {
+        tabConvertedBundle.click();
       }
     } else {
       appendLog('Error: ' + d.error, 'error');
+      progressFill.style.width = '100%';
+      progressFill.style.background = 'var(--danger)';
+      progressLabel.textContent = 'Conversion failed';
+      setTimeout(() => { progressFill.style.background = ''; }, 4000);
     }
+    isConverting = false;
+    conversionStartTime = null;
+    convertBtn.style.display = '';
+    stopBtn.style.display = 'none';
     convertBtn.disabled = false;
   });
 

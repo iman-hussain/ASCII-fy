@@ -26,6 +26,39 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
 const ROOT       = resolve(__dirname, '..');
 
+const ML_MODEL_URL = process.env.ASCII_FY_MODEL_URL
+  || 'https://huggingface.co/onnx-community/mediapipe_selfie_segmentation/resolve/main/onnx/model.onnx';
+
+/**
+ * Download the ML segmentation model to the given path.
+ * Returns true on success, false on failure.
+ */
+async function downloadMlModel(destPath) {
+  const https = await import('node:https');
+  const http  = await import('node:http');
+  const { dirname: d } = await import('node:path');
+  await mkdir(d(destPath), { recursive: true });
+
+  return new Promise((resolve) => {
+    const get = (url, redirects = 5) => {
+      const mod = url.startsWith('https') ? https : http;
+      mod.get(url, { headers: { 'User-Agent': 'ascii-fy' } }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
+          res.resume();
+          return get(res.headers.location, redirects - 1);
+        }
+        if (res.statusCode !== 200) { res.resume(); return resolve(false); }
+        const ws = createWriteStream(destPath);
+        res.pipe(ws);
+        ws.on('finish', () => resolve(true));
+        ws.on('error', () => resolve(false));
+        res.on('error', () => resolve(false));
+      }).on('error', () => resolve(false));
+    };
+    get(ML_MODEL_URL);
+  });
+}
+
 /* ── Palette presets ───────────────────────────────────────────────── */
 
 const gradientPresets = {
@@ -49,7 +82,7 @@ function safeOutputName(inputPath) {
 
 function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode }) {
   const parts = [safeOutputName(inputPath), mode || 'truecolor'];
-  if ((mode === 'palette' || mode === 'kmeans') && depth) parts.push(`${depth}c`);
+  if ((mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') && depth) parts.push(`${depth}c`);
   if (mode === 'palette' && palette) parts.push(palette);
   if (width) parts.push(`${width}w`);
   if (fps) parts.push(`${fps}fps`);
@@ -104,10 +137,13 @@ function broadcast(event, data) {
 /* ── Conversion engine ─────────────────────────────────────────────── */
 
 let converting = false;
+let currentAbort = null;   // AbortController for the active conversion
 
 async function runConversion(opts) {
   if (converting) throw new Error('A conversion is already in progress.');
   converting = true;
+  const ac = new AbortController();
+  currentAbort = ac;
 
   try {
     const {
@@ -124,8 +160,9 @@ async function runConversion(opts) {
       start,
       end,
       skipGif   = false,
-      foreground = null,
+      foreground: _fgRaw = null,
     } = opts;
+    let foreground = _fgRaw;
 
     broadcast('log', { msg: 'Probing video…' });
     let meta;
@@ -161,6 +198,14 @@ async function runConversion(opts) {
       render = { mode: 'mono', palette: null, charMode,
         theme: { fg: fg || '#00ff00', bg: bg || '#000000' }, label: 'Monochrome' };
       tone = { contrast: 1.15, brightness: 0.02, saturation: 1.0, gamma: 1.05 };
+    } else if (mode === 'grayscale') {
+      const pal = makeGrayscalePalette(depth);
+      broadcast('log', { msg: 'Sampling video for adaptive tone…' });
+      const stats = await sampleVideoLuminance(inputPath, width, meta);
+      tone = adaptiveTone(depth, stats, inputExt);
+      tone.saturation = 0;
+      render = { mode: 'palette', palette: pal, charMode,
+        theme: { fg: '#111', bg: resolvedBg }, label: `Grayscale (${depth} shades)` };
     } else if (mode === 'palette') {
       const pal = buildPresetPalette(palette, depth);
       broadcast('log', { msg: 'Sampling video for adaptive tone…' });
@@ -197,13 +242,18 @@ async function runConversion(opts) {
         try {
           await access(foreground.modelPath);
         } catch {
-          broadcast('log', { msg: '⚠ ML model not found at ' + foreground.modelPath + ' – run start.bat/start.sh to download it, or use Motion mask mode.' });
-          foreground = null; // disable foreground to avoid crash
+          // Try to download the model automatically
+          broadcast('log', { msg: 'ML model not found — attempting automatic download…' });
+          const downloaded = await downloadMlModel(foreground.modelPath);
+          if (!downloaded) {
+            broadcast('log', { msg: '⚠ ML model download failed. Falling back to Motion mask mode.' });
+            foreground = { ...foreground, mode: 'motion' };
+          } else {
+            broadcast('log', { msg: '✓ ML model downloaded successfully.' });
+          }
         }
       }
-      if (foreground) {
-        broadcast('log', { msg: `Foreground isolation: ${foreground.mode} mode, ${foreground.background} background` });
-      }
+      broadcast('log', { msg: `Foreground isolation: ${foreground.mode} mode, ${foreground.background} background` });
     }
 
     /* Output directory */
@@ -224,6 +274,7 @@ async function runConversion(opts) {
       startTime: start, endTime: end, meta, targetFps: fps, tone, charMode,
       collectFrames: false,
       foreground,
+      signal: ac.signal,
       onFrame: (idx, frame) => {
         frameCount = idx + 1;
         broadcast('progress', {
@@ -273,7 +324,9 @@ async function runConversion(opts) {
       gifUrl:     gifOk ? '/' + relative(ROOT, gifPath).split(/[\\/]/).map(encodeURIComponent).join('/') : null,
       gifSize,
       htmlPath:   bundleInfo?.htmlPath  || null,
+      htmlUrl:    bundleInfo?.htmlPath  ? '/' + relative(ROOT, bundleInfo.htmlPath).split(/[\\/]/).map(encodeURIComponent).join('/') : null,
       bundlePath: bundleInfo?.bundlePath || null,
+      bundleUrl:  bundleInfo?.bundlePath ? '/' + relative(ROOT, bundleInfo.bundlePath).split(/[\\/]/).map(encodeURIComponent).join('/') : null,
       bundleSize: bundleInfo?.stats?.bundleSize  || 0,
       gzipRatio:  bundleInfo?.stats?.gzipRatio   || '?',
       totalFrames: bundleInfo?.stats?.totalFrames || frameCount,
@@ -281,11 +334,13 @@ async function runConversion(opts) {
     broadcast('done', summary);
     return summary;
   } catch (err) {
-    const fail = { ok: false, error: err.message };
+    const msg = ac.signal.aborted ? 'Conversion stopped by user.' : err.message;
+    const fail = { ok: false, error: msg };
     broadcast('done', fail);
     return fail;
   } finally {
     converting = false;
+    currentAbort = null;
   }
 }
 
@@ -345,6 +400,17 @@ async function handler(req, res) {
     return;
   }
 
+  /* API: abort conversion */
+  if (url.pathname === '/api/abort' && req.method === 'POST') {
+    if (currentAbort) {
+      currentAbort.abort();
+      json(res, { ok: true });
+    } else {
+      json(res, { ok: false, error: 'No conversion in progress.' });
+    }
+    return;
+  }
+
   /* API: start conversion */
   if (url.pathname === '/api/convert' && req.method === 'POST') {
     const body = await readBody(req);
@@ -360,6 +426,128 @@ async function handler(req, res) {
       // Fire-and-forget — progress comes over SSE
       runConversion(opts).catch(() => {});
       json(res, { ok: true, started: true });
+    } catch (err) {
+      json(res, { ok: false, error: err.message });
+    }
+    return;
+  }
+
+  /* API: palette preview – returns generated palette colors */
+  if (url.pathname === '/api/palette-preview' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      const { palette, depth, mode, inputPath, width } = JSON.parse(body);
+      let colors;
+      if (mode === 'kmeans' && inputPath) {
+        const resolved = await resolveVideoPath(inputPath);
+        if (resolved) {
+          let meta;
+          try   { meta = await probeVideo(resolved); }
+          catch { meta = { fps: 24, width: 640, height: 480, duration: undefined }; }
+          colors = await extractPaletteFromVideo(resolved, width || 80, meta, depth || 16);
+        }
+      }
+      if (!colors) {
+        colors = buildPresetPalette(palette || 'realistic', depth || 16);
+      }
+      json(res, { ok: true, colors });
+    } catch (err) {
+      json(res, { ok: false, error: err.message });
+    }
+    return;
+  }
+
+  /* API: single-frame preview – renders one frame as ASCII HTML */
+  if (url.pathname === '/api/preview-frame' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      const opts = JSON.parse(body);
+      const resolved = await resolveVideoPath(opts.inputPath);
+      if (!resolved) { json(res, { ok: false, error: 'File not found' }); return; }
+
+      let meta;
+      try   { meta = await probeVideo(resolved); }
+      catch { meta = { fps: 24, width: 640, height: 480, duration: undefined }; }
+
+      const w     = opts.width || 80;
+      const mode  = opts.mode || 'truecolor';
+      const depth = opts.depth || 16;
+      const palette = opts.palette || 'realistic';
+      const charMode = opts.charMode || 'ascii';
+      const midTime = opts.time != null ? opts.time
+        : (meta.duration ? meta.duration / 2 : 1);
+
+      /* Build render config (same logic as runConversion) */
+      const inputExt = extname(resolved).toLowerCase();
+      let render, tone;
+      if (mode === 'mono') {
+        render = { mode: 'mono', palette: null, charMode,
+          theme: { fg: opts.fg || '#00ff00', bg: opts.bg || '#000000' } };
+        tone = { contrast: 1.15, brightness: 0.02, saturation: 1.0, gamma: 1.05 };
+      } else if (mode === 'grayscale') {
+        const pal = makeGrayscalePalette(depth);
+        const stats = await sampleVideoLuminance(resolved, w, meta);
+        tone = adaptiveTone(depth, stats, inputExt);
+        tone.saturation = 0;
+        render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: '#000' } };
+      } else if (mode === 'palette') {
+        const pal = buildPresetPalette(palette, depth);
+        const stats = await sampleVideoLuminance(resolved, w, meta);
+        tone = adaptiveTone(depth, stats, inputExt);
+        render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: '#000' } };
+      } else if (mode === 'kmeans') {
+        const pal = await extractPaletteFromVideo(resolved, w, meta, depth);
+        const stats = await sampleVideoLuminance(resolved, w, meta);
+        tone = adaptiveTone(depth, stats, inputExt);
+        render = { mode: 'palette', palette: pal || makeGrayscalePalette(depth), charMode, theme: { fg: '#111', bg: '#000' } };
+      } else {
+        render = { mode: 'truecolor', palette: null, charMode, theme: { fg: '#111', bg: '#000' } };
+        tone = inputExt === '.gif'
+          ? { contrast: 1.35, brightness: 0.04, saturation: 1.2, gamma: 1.1 }
+          : { contrast: 1.15, brightness: 0.02, saturation: 1.05, gamma: 1.05 };
+      }
+
+      let capturedFrame = null;
+      await convert({
+        inputPath: resolved,
+        outputWidth: w,
+        color: mode !== 'mono',
+        startTime: midTime,
+        endTime: midTime + 0.1,
+        meta,
+        targetFps: 1,
+        tone,
+        charMode,
+        collectFrames: false,
+        onFrame: (idx, frame) => {
+          if (!capturedFrame) capturedFrame = frame;
+        },
+      });
+
+      if (!capturedFrame) { json(res, { ok: false, error: 'No frames captured' }); return; }
+
+      /* Build simple HTML snippet for the single frame */
+      const { chars, colors: frameColors } = capturedFrame;
+      const rows = [];
+      const h = Math.ceil(chars.length / w);
+      for (let y = 0; y < h; y++) {
+        let rowHtml = '';
+        for (let x = 0; x < w; x++) {
+          const i = y * w + x;
+          const ch = chars[i] || ' ';
+          const esc = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+          if (frameColors && frameColors[i]) {
+            const [r, g, b] = frameColors[i];
+            rowHtml += '<span style="color:rgb(' + r + ',' + g + ',' + b + ')">' + esc + '</span>';
+          } else {
+            rowHtml += esc;
+          }
+        }
+        rows.push(rowHtml);
+      }
+      const html = rows.join('\n');
+
+      json(res, { ok: true, html, width: w, height: h });
     } catch (err) {
       json(res, { ok: false, error: err.message });
     }

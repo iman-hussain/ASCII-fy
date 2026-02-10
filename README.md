@@ -1,6 +1,6 @@
 # ascii-fy
 
-| Original | ASCII Preview |
+| Original (3.mb)| ASCII Preview (0.3mb) |
 | --- | --- |
 | ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
 
