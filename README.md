@@ -1,6 +1,10 @@
 # ascii-fy
 
-High-performance CLI tool that converts video files into lightweight ASCII art animations for the web.
+| Original | ASCII Preview |
+| --- | --- |
+| ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
+
+High-performance CLI and GUI tool that converts video files into lightweight ASCII art animations for the web.
 
 ## Features
 
@@ -13,6 +17,8 @@ High-performance CLI tool that converts video files into lightweight ASCII art a
 - **Input types** – Supports `.mp4`, `.gif`, and `.webm` inputs.
 - **Trim support** – Convert only a specific segment of a video (start/end time).
 - **Live tweaks** – Adjust foreground/background colors and re-generate outputs on demand.
+- **Foreground isolation** – Motion mask or ML segmentation with configurable background handling.
+- **Webcam capture** – Record from your webcam and convert the recording directly.
 
 ## Installation
 
@@ -23,6 +29,8 @@ npm install
 > Requires Node.js >= 18 and **FFmpeg** (bundled via `ffmpeg-static`).
 
 ## Usage
+
+ASCII-fy ships as both a GUI app (local web UI) and a CLI tool.
 
 ### GUI
 
@@ -36,6 +44,12 @@ macOS/Linux:
 
 ```bash
 ./start.sh
+```
+
+If needed, make it executable:
+
+```bash
+chmod +x start.sh
 ```
 
 ### CLI
@@ -60,6 +74,21 @@ The terminal preview runs automatically after conversion. You can then choose re
 The tool auto-creates `input/` and `output/` folders next to your video file if they do not already exist.
 After conversion, open the generated `demo.html` in a browser to view the animation.
 
+#### Foreground isolation
+
+In the GUI, enable **Foreground → Isolate subject** to separate the moving subject from a static background.
+
+- **Motion mask** – fast and lightweight (no ML).
+- **ML segmentation** – higher quality but requires a model file.
+
+Place your ONNX model at `models/selfie.onnx`. The ML option uses `onnxruntime-node`.
+
+The start scripts will auto-download a default selfie segmentation model if it is missing. You can override the download URL with `ASCII_FY_MODEL_URL`.
+
+#### Webcam capture
+
+Use **Use Webcam** in the GUI, then **Start Recording** / **Stop** to convert the recording.
+
 ## Output
 
 Each conversion writes to `output/<video-name>/`:
@@ -72,24 +101,39 @@ Each conversion writes to `output/<video-name>/`:
 
 ## Architecture
 
+```mermaid
+flowchart TD
+  A[Video File] --> B[FFmpeg
+  scale + fps + rgb24]
+  B --> C[Converter Engine
+  ASCII chars + colors]
+  C --> D[Bundler
+  RLE + delta + gzip]
+  C --> E[GIF Writer
+  preview.gif]
+  D --> F[bundle.js + demo.html]
+```
+
 ```text
-Video File
-  │
-  ▼
-FFmpeg (child process)
-  │  -vf scale=W:-2   ← downscale to target width
-  │  -pix_fmt rgb24    ← 3 bytes/pixel
-  │  -f image2pipe     ← stream to stdout
-  ▼
-Converter Engine (lib/converter.js)
-  │  Uint8Array pixel loop
-  │  Luminance → ASCII char mapping
-  ▼
-Bundler (lib/bundler.js)
-  │  Run-Length Encoding
-  │  Embed AsciiPlayer class
-  ▼
-bundle.js + demo.html
+ascii-fy/
+├─ gui/
+│  ├─ index.html   - GUI layout, controls, preview, and client logic
+│  └─ server.js    - local HTTP server, API routes, and conversion runner
+├─ models/         - optional ML segmentation model (selfie.onnx)
+├─ lib/
+│  ├─ bundler.js   - bundle.js + demo.html generator (RLE + gzip)
+│  ├─ converter.js - FFmpeg stream reader and ASCII frame generator
+│  ├─ gif.js       - preview.gif renderer
+│  ├─ kmeans.js    - palette extraction (k-means)
+│  ├─ player.js    - browser player runtime
+│  ├─ preview.js   - terminal preview player
+│  ├─ render.js    - palettes, ramps, and color helpers
+│  └─ tone.js      - adaptive tone + sampling
+├─ input/          - source videos (optional)
+├─ output/         - conversion outputs per video
+├─ index.js        - CLI entry point
+├─ start.bat       - GUI launcher (Windows)
+└─ start.sh        - GUI launcher (macOS/Linux)
 ```
 
 ## License

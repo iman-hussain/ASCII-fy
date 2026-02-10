@@ -92,8 +92,17 @@
 
   .preview-content {
     display: flex; align-items: center; justify-content: center;
-    min-height: 280px; background: #000;
+    min-height: 200px;
   }
+
+  .webcam-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .webcam-bar .status { font-size: 0.78rem; color: var(--muted); }
 
   .drop-zone {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -106,7 +115,7 @@
   .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
   .preview-video, .preview-gif {
-    width: 100%; max-height: 400px; object-fit: contain; display: block; background: #000;
+    width: 100%; display: block;
   }
 
   .info-bar {
@@ -226,15 +235,23 @@
           <div class="icon">🎬</div>
           <div class="label">Drop a video here or click to browse</div>
           <div class="label" style="margin-top:4px;font-size:.75rem">.mp4 .webm .gif .mov .avi .mkv</div>
-          <div style="margin-top:12px">
+          <div style="margin-top:12px; position:relative; z-index:2">
             <select id="inputSelect" style="max-width:260px;text-align:center">
               <option value="">— or pick from input/ —</option>
             </select>
           </div>
+          <div style="margin-top:8px; font-size:.78rem; color:var(--muted)">— or —</div>
+          <button class="btn btn-secondary" id="webcamBtn" type="button" style="margin-top:6px; position:relative; z-index:2">📷 Use Webcam</button>
         </div>
         <video class="preview-video hidden" id="previewVideo" muted loop playsinline controls></video>
         <img class="preview-gif hidden" id="previewGif" alt="Converted output" />
       </div>
+    </div>
+
+    <div class="webcam-bar hidden" id="webcamBar">
+      <button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>● Record</button>
+      <button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■ Stop</button>
+      <span class="status" id="recordStatus">Ready</span>
     </div>
 
     <div class="info-bar hidden" id="infoBar">
@@ -359,6 +376,35 @@
           </div>
         </div>
       </div>
+      <!-- Foreground separation -->
+      <div class="row">
+        <label>Foreground</label>
+        <div class="control" style="flex-direction:column; align-items:flex-start; gap:8px">
+          <div class="checkbox-row">
+            <input type="checkbox" id="fgEnable" />
+            <span>Isolate subject</span>
+          </div>
+          <div class="control hidden" id="fgOptions" style="gap:8px; width:100%; flex-wrap:wrap">
+            <select id="fgMode" style="min-width:140px">
+              <option value="motion" selected>Motion mask</option>
+              <option value="ml">ML segmentation</option>
+            </select>
+            <select id="fgBackground" style="min-width:160px">
+              <option value="transparent">Transparent background</option>
+              <option value="solid" selected>Solid background</option>
+              <option value="keep">Freeze background</option>
+            </select>
+          </div>
+          <div class="control hidden" id="fgThresholdRow" style="gap:8px; width:100%">
+            <input type="range" id="fgThreshold" min="5" max="80" value="20" step="1" />
+            <span class="range-value" id="fgThresholdVal">20</span>
+          </div>
+          <div class="control hidden" id="fgBgRow" style="gap:8px; width:100%">
+            <input type="color" id="fgBg" value="#000000" />
+            <span class="range-value" id="fgBgVal">#000000</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Estimate -->
@@ -403,6 +449,11 @@
   const fileInput     = $('#fileInput');
   const previewVideo  = $('#previewVideo');
   const previewGif    = $('#previewGif');
+  const webcamBar      = $('#webcamBar');
+  const webcamBtn      = $('#webcamBtn');
+  const recordStartBtn = $('#recordStartBtn');
+  const recordStopBtn  = $('#recordStopBtn');
+  const recordStatus   = $('#recordStatus');
   const infoBar       = $('#infoBar');
   const infoDims      = $('#infoDims');
   const infoFps       = $('#infoFps');
@@ -440,6 +491,16 @@
   const playerBgInput = $('#playerBg');
   const playerBgVal   = $('#playerBgVal');
   const autoBgCheck   = $('#autoBg');
+  const fgEnable      = $('#fgEnable');
+  const fgOptions     = $('#fgOptions');
+  const fgMode        = $('#fgMode');
+  const fgBackground  = $('#fgBackground');
+  const fgThreshold   = $('#fgThreshold');
+  const fgThresholdVal = $('#fgThresholdVal');
+  const fgBgRow       = $('#fgBgRow');
+  const fgBgInput     = $('#fgBg');
+  const fgBgVal       = $('#fgBgVal');
+  const fgThresholdRow = $('#fgThresholdRow');
 
   let selectedPath    = null;
   let videoMeta       = null;
@@ -448,7 +509,14 @@
   let convertedGifUrl = null;
   let convertedGifBlob = null;   // blob URL of current converted GIF
   let lastConvertResult = null;  // last conversion done data
+  let lastConvertOptions = null;
+  let estimateScale = 1;
   const gifHistory    = [];      // { blobUrl, result } entries for undo
+  let webcamStream = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recordTimer = null;
+  let recordStartTime = 0;
 
   /* ── Load input/ file list ─────────────────────────── */
   (async function loadFiles() {
@@ -496,6 +564,8 @@
     convertedGifUrl = null;
     convertedGifBlob = null;
     lastConvertResult = null;
+    lastConvertOptions = null;
+    estimateScale = 1;
     gifHistory.forEach(h => URL.revokeObjectURL(h.blobUrl));
     gifHistory.length = 0;
     if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
@@ -516,6 +586,8 @@
     tabOriginal.classList.add('active');
     tabConverted.classList.remove('active');
     tabConverted.disabled = true;
+
+    stopWebcam();
   }
 
   /* ── Drag & drop ───────────────────────────────────── */
@@ -534,6 +606,74 @@
   });
   fileInput.addEventListener('change', () => {
     if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function stopWebcam() {
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(t => t.stop());
+      webcamStream = null;
+    }
+    previewVideo.srcObject = null;
+    mediaRecorder = null;
+    recordedChunks = [];
+    if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
+    webcamBar.classList.add('hidden');
+    recordStartBtn.disabled = true;
+    recordStopBtn.disabled = true;
+    recordStatus.textContent = 'Ready';
+  }
+
+  webcamBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      previewVideo.srcObject = webcamStream;
+      previewVideo.classList.remove('hidden');
+      previewVideo.muted = true;
+      previewVideo.play().catch(() => {});
+      dropZone.classList.add('hidden');
+      previewGif.classList.add('hidden');
+      previewTabs.classList.add('hidden');
+      tabConverted.disabled = true;
+      webcamBar.classList.remove('hidden');
+      recordStartBtn.disabled = false;
+      recordStopBtn.disabled = true;
+      recordStatus.textContent = 'Ready';
+    } catch (err) {
+      appendLog('Webcam error: ' + err.message, 'error');
+      logArea.classList.add('active');
+    }
+  });
+
+  recordStartBtn.addEventListener('click', () => {
+    if (!webcamStream) return;
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm' });
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const file = new File([blob], 'webcam.webm', { type: 'video/webm' });
+      stopWebcam();
+      await handleFile(file);
+    };
+    mediaRecorder.start();
+    recordStartTime = Date.now();
+    recordStatus.textContent = 'Recording — 0:00';
+    recordTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+      const m = Math.floor(elapsed / 60);
+      const s = String(elapsed % 60).padStart(2, '0');
+      recordStatus.textContent = 'Recording — ' + m + ':' + s;
+    }, 100);
+    recordStartBtn.disabled = true;
+    recordStopBtn.disabled = false;
+  });
+
+  recordStopBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
   });
 
   async function handleFile(file) {
@@ -671,6 +811,7 @@
       if (d.bundleSize) parts.push(formatBytes(d.bundleSize) + ' bundle');
       if (d.gifSize) parts.push(formatBytes(d.gifSize) + ' GIF');
       infoSize.textContent = parts.join(' · ') || '—';
+      if (d.width && d.height) previewGif.style.aspectRatio = d.width + ' / ' + d.height;
     } else if (videoMeta) {
       infoBar.classList.remove('hidden');
       if (videoMeta.width && videoMeta.height) infoDims.textContent = videoMeta.width + '×' + videoMeta.height;
@@ -679,26 +820,32 @@
         infoFrames.textContent = Math.round(videoMeta.duration * videoMeta.fps).toLocaleString();
       }
       infoSize.textContent = videoFileSize ? formatBytes(videoFileSize) : '—';
+      if (videoMeta.width && videoMeta.height) previewVideo.style.aspectRatio = videoMeta.width + ' / ' + videoMeta.height;
     } else {
       return;
     }
   }
 
   /* ── Estimate bundle size ──────────────────────────── */
+  function estimateBundleBase({ w, h, frames, mode }) {
+    const bpc = mode === 'mono' ? 0.12 : mode === 'palette' ? 0.35 : 0.5;
+    return Math.round(w * h * frames * bpc * 0.75 + 18000);
+  }
+
   function updateEstimate() {
     if (!videoMeta) { estimateArea.classList.add('hidden'); return; }
     const w   = parseInt(widthSlider.value);
     const fps = parseInt(fpsSlider.value);
     const mode = modeSelect.value;
     const aspect = (videoMeta.height || 480) / (videoMeta.width || 640);
-    const h = Math.round(w * aspect * 0.5);
+    const h = Math.round(w * aspect * 0.75);  // CELL_W/CELL_H = 6/8 = 0.75
     const dur = videoMeta.duration || 10;
     const trimS = parseFloat($('#start').value) || 0;
     const trimE = parseFloat($('#end').value) || dur;
     const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
     const frames = Math.max(1, Math.round(effDur * fps));
-    const bpc = mode === 'mono' ? 0.12 : mode === 'palette' ? 0.35 : 0.5;
-    const est = Math.round(w * h * frames * bpc * 0.45 + 15000);
+    const base = estimateBundleBase({ w, h, frames, mode });
+    const est = Math.round(base * estimateScale);
     estimateArea.classList.remove('hidden');
     estimateVal.textContent = '~' + formatBytes(est);
   }
@@ -711,6 +858,11 @@
   bgInput.oninput     = () => { bgValEl.textContent   = bgInput.value; };
   playerBgInput.oninput = () => { playerBgVal.textContent = playerBgInput.value; };
   autoBgCheck.onchange  = () => { playerBgInput.disabled = autoBgCheck.checked; };
+  fgThreshold.oninput   = () => { fgThresholdVal.textContent = fgThreshold.value; };
+  fgBgInput.oninput     = () => { fgBgVal.textContent = fgBgInput.value; };
+  fgEnable.onchange     = () => { updateForegroundFields(); };
+  fgBackground.onchange = () => { updateForegroundFields(); };
+  fgMode.onchange       = () => { updateForegroundFields(); };
   modeSelect.onchange   = () => { updateModeFields(); updateEstimate(); };
   $('#start').addEventListener('input', updateEstimate);
   $('#end').addEventListener('input', updateEstimate);
@@ -724,6 +876,15 @@
     playerBgRow.classList.toggle('hidden', m === 'mono');
   }
   updateModeFields();
+
+  function updateForegroundFields() {
+    const enabled = fgEnable.checked;
+    fgOptions.classList.toggle('hidden', !enabled);
+    fgThresholdRow.classList.toggle('hidden', !enabled);
+    const showBg = enabled && fgBackground.value === 'solid';
+    fgBgRow.classList.toggle('hidden', !showBg);
+  }
+  updateForegroundFields();
 
   /* ── Preview tabs ──────────────────────────────────── */
   tabOriginal.addEventListener('click', () => {
@@ -791,6 +952,21 @@
       skipGif:  $('#skipGif').checked,
     };
 
+    lastConvertOptions = {
+      mode,
+      width: opts.width,
+      fps: opts.fps,
+    };
+
+    if (fgEnable.checked) {
+      opts.foreground = {
+        mode: fgMode.value,
+        background: fgBackground.value,
+        threshold: parseInt(fgThreshold.value),
+        bg: fgBgInput.value,
+      };
+    }
+
     try {
       await fetch('/api/convert', {
         method: 'POST',
@@ -848,6 +1024,20 @@
         previewGif.src = convertedGifBlob;
         previewTabs.classList.remove('hidden');
         tabConverted.disabled = false;
+
+        if (lastConvertOptions && d.bundleSize && (d.totalFrames || d.frames)) {
+          const base = estimateBundleBase({
+            w: d.width,
+            h: d.height,
+            frames: d.totalFrames || d.frames,
+            mode: lastConvertOptions.mode,
+          });
+          if (base > 0) {
+            const ratio = d.bundleSize / base;
+            estimateScale = Math.max(0.5, Math.min(4, ratio));
+            updateEstimate();
+          }
+        }
 
         // Show/hide undo button
         undoBtn.classList.toggle('hidden', gifHistory.length === 0);

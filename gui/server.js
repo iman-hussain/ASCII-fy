@@ -124,6 +124,7 @@ async function runConversion(opts) {
       start,
       end,
       skipGif   = false,
+      foreground = null,
     } = opts;
 
     broadcast('log', { msg: 'Probing video…' });
@@ -183,6 +184,28 @@ async function runConversion(opts) {
         : { contrast: 1.15, brightness: 0.02, saturation: 1.05, gamma: 1.05 };
     }
 
+    if (foreground && render?.theme) {
+      if (foreground.background === 'transparent') {
+        render.theme.bg = 'transparent';
+      } else if (foreground.background === 'solid' && foreground.bg) {
+        render.theme.bg = foreground.bg;
+      }
+      if (foreground.mode === 'ml') {
+        if (!foreground.modelPath) {
+          foreground.modelPath = join(ROOT, 'models', 'selfie.onnx');
+        }
+        try {
+          await access(foreground.modelPath);
+        } catch {
+          broadcast('log', { msg: '⚠ ML model not found at ' + foreground.modelPath + ' – run start.bat/start.sh to download it, or use Motion mask mode.' });
+          foreground = null; // disable foreground to avoid crash
+        }
+      }
+      if (foreground) {
+        broadcast('log', { msg: `Foreground isolation: ${foreground.mode} mode, ${foreground.background} background` });
+      }
+    }
+
     /* Output directory */
     const outputDir    = join(ROOT, 'output');
     const outputJobDir = join(outputDir, safeOutputName(inputPath));
@@ -200,6 +223,7 @@ async function runConversion(opts) {
       inputPath, outputWidth: width, color: includeColors,
       startTime: start, endTime: end, meta, targetFps: fps, tone, charMode,
       collectFrames: false,
+      foreground,
       onFrame: (idx, frame) => {
         frameCount = idx + 1;
         broadcast('progress', {
