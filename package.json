@@ -10,6 +10,10 @@
 	"exports": {
 		".": "./lib/api.js"
 	},
+	"files": [
+		"lib",
+		"index.js"
+	],
 	"scripts": {
 		"start": "node index.js",
 		"gui": "node gui/server.js",

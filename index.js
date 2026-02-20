@@ -128,11 +128,21 @@ function parseCliArgs(argv) {
 		else if (a === '-s' || a === '--start') { opts.start = Number(next()); }
 		else if (a === '-e' || a === '--end') { opts.end = Number(next()); }
 		else if (a === '-g' || a === '--char-mode') { opts.charMode = next(); }
+		else if (a === '--brightness') { opts.customBrightness = parseInt(next()); }
+		else if (a === '--contrast') { opts.customContrast = parseInt(next()); }
 		else if (a === '--no-gif') { opts.noGif = true; }
 		else if (a === '--no-open') { opts.noOpen = true; }
 		else if (!a.startsWith('-') && !opts.inputFile) {
 			opts.inputFile = a;
 		}
+	}
+
+	// Support for custom tone via CLI flags
+	if (typeof opts.customBrightness === 'number' || typeof opts.customContrast === 'number') {
+		opts.customTone = {
+			brightness: opts.customBrightness || 0,
+			contrast: opts.customContrast || 0
+		};
 	}
 
 	return opts;
@@ -158,6 +168,8 @@ function printHelp() {
     -g, --char-mode <mode>  Character mode: ascii | block  (default: ascii)
     -s, --start  <sec>      Trim start
     -e, --end    <sec>      Trim end
+        --brightness <int>  Manual brightness override (-100 to 100)
+        --contrast <int>    Manual contrast override (-100 to 100)
         --no-gif            Skip GIF generation
         --no-open           Don't auto-open output files
     -h, --help              Show this help

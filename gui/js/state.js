@@ -1,0 +1,52 @@
+export const state = {
+	selectedPath: null,
+	videoMeta: null,
+	videoFileSize: null,
+	blobUrl: null,
+	convertedGifUrl: null,
+	convertedGifBlob: null,   // blob URL of current converted GIF
+	convertedBundleUrl: null, // URL for the bundle.js file
+	bundleTextCache: null,    // cached bundle.js content
+	conversionStartTime: null,
+	isConverting: false,
+	lastConvertResult: null,  // last conversion done data
+	lastConvertOptions: null,
+	estimateScale: 1,
+	gifHistory: [],           // { blobUrl, result } entries for undo
+	webcamStream: null,
+	mediaRecorder: null,
+	recordedChunks: [],
+	recordTimer: null,
+	recordStartTime: 0,
+	isCropping: false,
+	framePreviewHtml: null,
+	currentPreviewBg: '#000000',
+	dragContext: null
+};
+
+// Safe setters
+export function setState(key, value) {
+	if (key in state) {
+		state[key] = value;
+	}
+}
+
+export function resetState() {
+	state.selectedPath = null;
+	state.videoMeta = null;
+	state.videoFileSize = null;
+	state.convertedGifUrl = null;
+	state.convertedGifBlob = null;
+	state.lastConvertResult = null;
+	state.lastConvertOptions = null;
+	state.estimateScale = 1;
+	// Revoke previous URLs
+	state.gifHistory.forEach(h => URL.revokeObjectURL(h.blobUrl));
+	state.gifHistory.length = 0;
+	if (state.blobUrl) { URL.revokeObjectURL(state.blobUrl); state.blobUrl = null; }
+	state.framePreviewHtml = null;
+	state.convertedBundleUrl = null;
+	state.bundleTextCache = null;
+	state.isCropping = false;
+	state.dragContext = null;
+}

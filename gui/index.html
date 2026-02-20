@@ -1,1617 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ASCII-fy</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg:       #0e0e16;
-    --surface:  #16161e;
-    --border:   #2a2a3a;
-    --text:     #d4d4d8;
-    --muted:    #71717a;
-    --accent:   #00e87b;
-    --accent2:  #00c9ff;
-    --danger:   #ff5c5c;
-    --radius:   8px;
-  }
-  body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    line-height: 1.5;
-  }
-
-  /* ── Header ─────────────────────────────────────────── */
-  .header { text-align: center; padding: 24px 16px 16px; }
-  .header h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
-  .header h1 span { color: var(--accent); }
-  .header .subtitle { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
-
-  /* ── Two-column layout ──────────────────────────────── */
-  .app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px 48px;
-    align-items: start;
-  }
-  @media (max-width: 800px) { .app { grid-template-columns: 1fr; } }
-
-  /* ── Left column: Preview ───────────────────────────── */
-  .preview-col { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
-
-  .file-header {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-  .file-header .name {
-    flex: 1; font-size: 0.88rem; font-weight: 600; color: #fff;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .file-header .change-btn {
-    font-size: 0.72rem; background: transparent; border: 1px solid var(--border);
-    color: var(--muted); padding: 3px 10px; border-radius: 4px; cursor: pointer;
-  }
-  .file-header .change-btn:hover { color: var(--text); border-color: var(--text); }
-
-  .preview-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    display: flex; flex-direction: column;
-  }
-  .preview-tabs {
-    display: flex; border-bottom: 1px solid var(--border);
-    background: var(--surface);
-  }
-  .preview-tab {
-    flex: 1; padding: 8px; text-align: center; font-size: 0.82rem; font-weight: 600;
-    cursor: pointer; border: none; background: transparent; color: var(--muted);
-    border-bottom: 2px solid transparent; transition: all .15s;
-  }
-  .preview-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .preview-tab:hover:not(.active) { color: var(--text); }
-  .preview-tab:disabled { opacity: .35; cursor: not-allowed; }
-
-  .undo-btn {
-    padding: 4px 10px; background: transparent; border: 1px solid var(--border);
-    color: var(--muted); font-size: 0.78rem; border-radius: 4px; cursor: pointer;
-    margin: 4px 6px 4px 0; align-self: center;
-  }
-  .undo-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text); }
-  .undo-btn:disabled { opacity: .35; cursor: not-allowed; }
-
-  .preview-content {
-    display: flex; align-items: center; justify-content: center;
-    min-height: 200px;
-  }
-  .preview-content.bundle-active {
-    align-items: stretch;
-  }
-  .preview-content.bundle-active .bundle-iframe {
-    flex: 1;
-  }
-
-  .webcam-bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-  .webcam-bar .status { font-size: 0.78rem; color: var(--muted); }
-
-  .drop-zone {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 40px 20px; text-align: center; width: 100%; cursor: pointer;
-    transition: background .15s; position: relative;
-  }
-  .drop-zone:hover, .drop-zone.drag-over { background: rgba(0,232,123,.04); }
-  .drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
-  .drop-zone .label { font-size: 0.88rem; color: var(--muted); }
-  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
-  .preview-video, .preview-gif {
-    width: 100%; display: block;
-  }
-
-  .info-bar {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 14px;
-    display: flex; flex-wrap: wrap; gap: 8px 16px;
-  }
-  .info-item { font-size: 0.78rem; color: var(--muted); }
-  .info-item .val { color: var(--accent); font-weight: 600; }
-
-  /* ── Right column: Controls ─────────────────────────── */
-  .controls-col { display: flex; flex-direction: column; gap: 12px; }
-
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-  .row { display: flex; align-items: center; gap: 12px; }
-  .row label { font-size: 0.82rem; color: var(--muted); min-width: 90px; flex-shrink: 0; }
-  .control { display: flex; align-items: center; gap: 8px; flex: 1; }
-
-  select, input[type="number"] {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
-    padding: 6px 10px; color: var(--text); font-size: 0.88rem; outline: none; width: 100%;
-  }
-  select:focus, input:focus { border-color: var(--accent); }
-
-  input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
-  .range-value { color: var(--accent); font-weight: 600; font-size: 0.88rem; min-width: 36px; text-align: right; cursor: pointer; border-bottom: 1px dashed transparent; }
-  .range-value:hover { border-bottom-color: var(--accent); }
-  .range-value-input { width: 52px; background: var(--surface); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; text-align: center; font-size: 0.85rem; font-weight: 600; padding: 1px 2px; }
-  .tab-size { font-size: 0.72rem; opacity: 0.65; margin-left: 3px; font-weight: 400; }
-
-  input[type="color"] {
-    width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px;
-    padding: 2px; cursor: pointer; background: transparent;
-  }
-  input[type="color"]:disabled { opacity: .35; cursor: not-allowed; }
-
-  .checkbox-row { display: flex; align-items: center; gap: 8px; }
-  .checkbox-row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
-  .checkbox-row span { font-size: 0.85rem; }
-
-  /* ── Buttons ────────────────────────────────────────── */
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 10px 24px; border-radius: var(--radius); font-size: 0.92rem;
-    font-weight: 600; cursor: pointer; border: none; transition: background .15s, opacity .15s;
-  }
-  .btn:disabled { opacity: .4; cursor: not-allowed; }
-  .btn-primary { background: var(--accent); color: #0e0e16; width: 100%; }
-  .btn-primary:hover:not(:disabled) { background: #00ff88; }
-  .btn-secondary {
-    background: var(--surface); color: var(--accent); border: 1px solid var(--accent);
-    padding: 7px 16px; font-size: 0.82rem;
-  }
-  .btn-secondary:hover:not(:disabled) { background: rgba(0,232,123,.08); }
-
-  /* ── Estimate ───────────────────────────────────────── */
-  .estimate { text-align: center; font-size: 0.82rem; color: var(--muted); padding: 4px 0; }
-  .estimate .val { color: var(--accent); font-weight: 600; }
-
-  /* ── Progress ───────────────────────────────────────── */
-  .progress-area { margin-top: 4px; display: none; }
-  .progress-area.active { display: block; }
-  .progress-bar-track { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
-  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width .15s; border-radius: 3px; }
-  .progress-label { font-size: 0.8rem; color: var(--muted); }
-
-  /* ── Log ────────────────────────────────────────────── */
-  .log-area { margin-top: 4px; display: none; }
-  .log-area.active { display: block; }
-  .log-box {
-    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 12px; max-height: 140px; overflow-y: auto;
-    font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.78rem;
-    line-height: 1.5; color: var(--muted);
-  }
-  .log-box div { white-space: pre-wrap; }
-  .log-box .success { color: var(--accent); }
-  .log-box .error   { color: var(--danger); }
-
-  /* ── Results ────────────────────────────────────────── */
-  .results { margin-top: 4px; display: none; }
-  .results.active { display: block; }
-  .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-  /* ── Preview BG bar ─────────────────────────────────── */
-  .preview-bg-bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 0.78rem; color: var(--muted);
-  }
-  .preview-bg-bar .swatch-btn {
-    width: 22px; height: 22px; border-radius: 4px; border: 2px solid transparent;
-    cursor: pointer; transition: border-color .15s;
-  }
-  .preview-bg-bar .swatch-btn:hover,
-  .preview-bg-bar .swatch-btn.active { border-color: var(--accent); }
-  .preview-bg-bar .swatch-btn.checkerboard {
-    background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 10px 10px;
-  }
-  .preview-bg-bar input[type="color"] { width: 22px; height: 22px; padding: 0; border-radius: 4px; border: 1px solid var(--border); }
-
-  /* ── Palette swatches ────────────────────────────────── */
-  .palette-swatch-bar {
-    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px;
-  }
-  .palette-swatch-bar .swatch {
-    width: 16px; height: 16px; border-radius: 2px;
-    border: 1px solid rgba(255,255,255,.12);
-  }
-
-  /* ── Frame preview overlay ─────────────────────────── */
-  .frame-preview-box {
-    width: 100%; overflow-x: auto; padding: 8px;
-    font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 5px; line-height: 1.0;
-    white-space: pre; background: #000;
-    border-radius: var(--radius);
-  }
-  .bundle-viewer {
-    width: 100%; max-height: 520px; overflow: auto; padding: 12px;
-    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
-    font-size: 0.72rem; line-height: 1.35;
-    white-space: pre-wrap; word-break: break-all;
-    background: #0d0d0d; color: #b0b0b0;
-    border-radius: var(--radius); tab-size: 2;
-  }
-  .bundle-viewer-empty { color: var(--muted); font-style: italic; }
-  .bundle-iframe {
-    width: 100%; height: 100%; min-height: 520px;
-    border: none; border-radius: 0; display: block;
-    background: #111;
-  }
-  .show-raw-js-box {
-    display: inline-flex; align-items: center; gap: 4px;
-    margin-left: auto; font-size: .78rem; color: var(--fg);
-    cursor: pointer; user-select: none;
-  }
-  .show-raw-js-box input { cursor: pointer; }
-
-  .hidden { display: none !important; }
-</style>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>ASCII-fy</title>
+	<link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
 
-<div class="header">
-  <h1>ASCII<span>-fy</span></h1>
-  <p class="subtitle">Video → ASCII Art</p>
-</div>
+	<div class="header">
+		<h1>ASCII<span>-fy</span></h1>
+		<p class="subtitle">Video → ASCII Art</p>
+	</div>
 
-<div class="app">
-  <!-- ═══ Left column: Preview ═══════════════════════════════ -->
-  <div class="preview-col">
-    <div class="file-header hidden" id="fileHeader">
-      <span class="name" id="fileName"></span>
-      <button class="change-btn" id="changeFileBtn" type="button">Change</button>
-    </div>
+	<div class="app">
+		<!-- ═══ Left column: Preview ═══════════════════════════════ -->
+		<div class="preview-col">
+			<div class="file-header hidden" id="fileHeader">
+				<span class="name" id="fileName"></span>
+				<button class="change-btn" id="changeFileBtn" type="button">Change</button>
+			</div>
 
-    <div class="preview-box" id="previewBox">
-      <div class="preview-tabs hidden" id="previewTabs">
-        <button class="preview-tab active" id="tabOriginal" type="button">Original<span class="tab-size" id="tabOriginalSize"></span></button>
-        <button class="preview-tab" id="tabConvertedGif" type="button" disabled>GIF<span class="tab-size" id="tabGifSize"></span></button>
-        <button class="preview-tab" id="tabConvertedBundle" type="button" disabled>bundle.js<span class="tab-size" id="tabBundleSize"></span></button>
-        <button class="preview-tab" id="tabFramePreview" type="button" disabled>Frame</button>
-        <button class="undo-btn hidden" id="undoBtn" type="button" disabled title="Revert to previous GIF">↩ Undo</button>
-      </div>
-      <div class="preview-content" id="previewContent">
-        <div class="drop-zone" id="dropZone">
-          <input type="file" id="fileInput" accept=".mp4,.webm,.gif,.mov,.avi,.mkv,.flv" />
-          <div class="icon">🎬</div>
-          <div class="label">Drop a video here or click to browse</div>
-          <div class="label" style="margin-top:4px;font-size:.75rem">.mp4 .webm .gif .mov .avi .mkv</div>
-          <div style="margin-top:12px; position:relative; z-index:2">
-            <select id="inputSelect" style="max-width:260px;text-align:center">
-              <option value="">— or pick from input/ —</option>
-            </select>
-          </div>
-          <div style="margin-top:8px; font-size:.78rem; color:var(--muted)">— or —</div>
-          <button class="btn btn-secondary" id="webcamBtn" type="button" style="margin-top:6px; position:relative; z-index:2">📷 Use Webcam</button>
-        </div>
-        <video class="preview-video hidden" id="previewVideo" muted loop playsinline controls></video>
-        <img class="preview-gif hidden" id="previewGif" alt="Converted output" />
-        <iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
-        <pre class="bundle-viewer hidden" id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
-        <div class="frame-preview-box hidden" id="framePreview"></div>
-      </div>
-    </div>
+			<div class="preview-box" id="previewBox">
+				<div class="preview-tabs hidden" id="previewTabs">
+					<button class="preview-tab active" id="tabOriginal" type="button">Original<span
+							class="tab-size" id="tabOriginalSize"></span></button>
+					<button class="preview-tab" id="tabConvertedGif" type="button" disabled>GIF<span
+							class="tab-size" id="tabGifSize"></span></button>
+					<button class="preview-tab" id="tabConvertedBundle" type="button"
+						disabled>bundle.js<span class="tab-size"
+							id="tabBundleSize"></span></button>
+					<button class="preview-tab" id="tabFramePreview" type="button"
+						disabled>Frame</button>
+					<button class="undo-btn hidden" id="undoBtn" type="button" disabled
+						title="Revert to previous GIF">↩ Undo</button>
+				</div>
+				<div class="preview-content" id="previewContent">
+					<div class="drop-zone" id="dropZone">
+						<input type="file" id="fileInput"
+							accept=".mp4,.webm,.gif,.mov,.avi,.mkv,.flv" />
+						<div class="icon">🎬</div>
+						<div class="label">Drop a video here or click to browse</div>
+						<div class="label" style="margin-top:4px;font-size:.75rem">.mp4 .webm
+							.gif .mov .avi .mkv</div>
+						<div style="margin-top:12px; position:relative; z-index:2">
+							<select id="inputSelect"
+								style="max-width:260px;text-align:center">
+								<option value="">— or pick from input/ —</option>
+							</select>
+						</div>
+						<div style="margin-top:8px; font-size:.78rem; color:var(--muted)">— or —
+						</div>
+						<button class="btn btn-secondary" id="webcamBtn" type="button"
+							style="margin-top:6px; position:relative; z-index:2">📷 Use
+							Webcam</button>
+					</div>
+					<div id="previewVideoContainer" class="hidden"
+						style="position:relative; width:100%; display:flex; align-items:center; justify-content:center;">
+						<video class="preview-video" id="previewVideo" muted loop playsinline
+							controls style="max-width:100%; max-height:520px;"></video>
+						<div id="cropBox" class="hidden"
+							style="position:absolute; border: 2px dashed var(--accent); background: rgba(0, 232, 123, 0.15); cursor: move; touch-action: none; box-sizing: border-box; z-index:5;">
+							<div class="crop-handle" data-handle="nw"
+								style="top:-5px; left:-5px; cursor:nw-resize;"></div>
+							<div class="crop-handle" data-handle="ne"
+								style="top:-5px; right:-5px; cursor:ne-resize;"></div>
+							<div class="crop-handle" data-handle="sw"
+								style="bottom:-5px; left:-5px; cursor:sw-resize;"></div>
+							<div class="crop-handle" data-handle="se"
+								style="bottom:-5px; right:-5px; cursor:se-resize;">
+							</div>
+						</div>
+					</div>
+					<img class="preview-gif hidden" id="previewGif" alt="Converted output" />
+					<iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
+					<pre class="bundle-viewer hidden"
+						id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
+					<div class="frame-preview-box hidden" id="framePreview"></div>
+				</div>
+			</div>
 
-    <div class="preview-bg-bar hidden" id="previewBgBar">
-      <span>Preview BG:</span>
-      <button class="swatch-btn" data-bg="#000000" style="background:#000000" title="Black"></button>
-      <button class="swatch-btn" data-bg="#ffffff" style="background:#ffffff" title="White"></button>
-      <button class="swatch-btn" data-bg="#1a1a2e" style="background:#1a1a2e" title="Dark blue"></button>
-      <button class="swatch-btn" data-bg="#808080" style="background:#808080" title="Grey"></button>
-      <button class="swatch-btn checkerboard" data-bg="checkerboard" title="Checkerboard"></button>
-      <input type="color" id="previewBgCustom" value="#000000" title="Custom colour" />
-      <label class="show-raw-js-box hidden" id="showRawJsBox">
-        <input type="checkbox" id="showRawJs" /> show raw .js
-      </label>
-    </div>
+			<div class="preview-bg-bar hidden" id="previewBgBar">
+				<span>Preview Background:</span>
+				<button class="swatch-btn" data-bg="#000000" style="background:#000000"
+					title="Black"></button>
+				<button class="swatch-btn" data-bg="#ffffff" style="background:#ffffff"
+					title="White"></button>
+				<button class="swatch-btn" data-bg="#1a1a2e" style="background:#1a1a2e"
+					title="Dark blue"></button>
+				<button class="swatch-btn" data-bg="#808080" style="background:#808080"
+					title="Grey"></button>
+				<button class="swatch-btn checkerboard" data-bg="checkerboard"
+					title="Checkerboard"></button>
+				<input type="color" id="previewBgCustom" value="#000000" title="Custom colour" />
+				<label class="show-raw-js-box hidden" id="showRawJsBox">
+					<input type="checkbox" id="showRawJs" /> show raw .js
+				</label>
+			</div>
 
-    <div class="webcam-bar hidden" id="webcamBar">
-      <button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>● Record</button>
-      <button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■ Stop</button>
-      <span class="status" id="recordStatus">Ready</span>
-    </div>
+			<div class="webcam-bar hidden" id="webcamBar">
+				<button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>●
+					Record</button>
+				<button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■
+					Stop</button>
+				<span class="status" id="recordStatus">Ready</span>
+			</div>
 
-    <div class="info-bar hidden" id="infoBar">
-      <div class="info-item"><span class="val" id="infoDims">—</span> resolution</div>
-      <div class="info-item"><span class="val" id="infoFps">—</span> fps</div>
-      <div class="info-item"><span class="val" id="infoFrames">—</span> frames</div>
-      <div class="info-item"><span class="val" id="infoSize">—</span></div>
-    </div>
+			<div class="info-bar hidden" id="infoBar">
+				<div class="info-item"><span class="val" id="infoDims">—</span> resolution</div>
+				<div class="info-item"><span class="val" id="infoFps">—</span> fps</div>
+				<div class="info-item"><span class="val" id="infoFrames">—</span> frames</div>
+				<div class="info-item"><span class="val" id="infoSize">—</span></div>
+			</div>
 
-    <!-- Results (shown under converted preview) -->
-    <div class="results" id="resultsArea">
-      <div class="result-actions" id="resultActions"></div>
-    </div>
-  </div>
+			<!-- Results (shown under converted preview) -->
+			<div class="results" id="resultsArea">
+				<div class="result-actions" id="resultActions"></div>
+			</div>
+		</div>
 
-  <!-- ═══ Right column: Controls ═════════════════════════════ -->
-  <div class="controls-col">
-    <div class="panel" id="controlsPanel">
-      <!-- Width -->
-      <div class="row">
-        <label for="width">Width</label>
-        <div class="control">
-          <input type="range" id="width" min="20" max="200" value="80" step="5" />
-          <span class="range-value" id="widthVal">80</span>
-        </div>
-      </div>
-      <!-- FPS -->
-      <div class="row">
-        <label for="fps">FPS</label>
-        <div class="control">
-          <input type="range" id="fps" min="6" max="60" value="24" step="1" />
-          <span class="range-value" id="fpsVal">24</span>
-        </div>
-      </div>
-      <!-- Colour mode -->
-      <div class="row">
-        <label for="mode">Colour mode</label>
-        <div class="control">
-          <select id="mode">
-            <option value="truecolor" selected>Truecolor</option>
-            <option value="palette">Palette</option>
-            <option value="kmeans">K-Means</option>
-            <option value="mono">Monochrome</option>
-            <option value="grayscale">Grayscale</option>
-          </select>
-        </div>
-      </div>
-      <!-- Palette preset -->
-      <div class="row" id="paletteRow">
-        <label for="palette">Palette</label>
-        <div class="control" style="flex-direction:column; align-items:stretch; gap:4px">
-          <select id="palette">
-            <option value="realistic">Realistic</option>
-            <option value="grayscale">Grayscale</option>
-            <option value="sunset">Sunset</option>
-            <option value="ocean">Ocean</option>
-            <option value="neon">Neon</option>
-            <option value="forest">Forest</option>
-          </select>
-          <div class="palette-swatch-bar" id="paletteSwatch"></div>
-        </div>
-      </div>
-      <!-- Depth -->
-      <div class="row" id="depthRow">
-        <label for="depth">Colours</label>
-        <div class="control">
-          <input type="range" id="depth" min="2" max="64" value="16" step="1" />
-          <span class="range-value" id="depthVal">16</span>
-        </div>
-      </div>
-      <!-- Mono fg -->
-      <div class="row" id="monoFgRow">
-        <label>Foreground</label>
-        <div class="control">
-          <input type="color" id="fg" value="#00ff00" />
-          <span class="range-value" id="fgVal">#00ff00</span>
-        </div>
-      </div>
-      <!-- Mono bg -->
-      <div class="row" id="monoBgRow">
-        <label>Background</label>
-        <div class="control">
-          <input type="color" id="bg" value="#000000" />
-          <span class="range-value" id="bgVal">#000000</span>
-        </div>
-      </div>
-      <!-- Char mode -->
-      <div class="row">
-        <label for="charMode">Char mode</label>
-        <div class="control">
-          <select id="charMode">
-            <option value="ascii" selected>ASCII (edge-aware)</option>
-            <option value="block">Block (█▓▒░)</option>
-          </select>
-        </div>
-      </div>
+		<!-- ═══ Right column: Controls ═════════════════════════════ -->
+		<div class="controls-col">
+			<div class="panel" id="controlsPanel">
+				<!-- Width -->
+				<div class="row">
+					<label for="width">Width</label>
+					<div class="control">
+						<input type="range" id="width" min="20" max="200" value="80" step="5" />
+						<span class="range-value" id="widthVal">80</span>
+					</div>
+				</div>
+				<!-- FPS -->
+				<div class="row">
+					<label for="fps">FPS</label>
+					<div class="control">
+						<input type="range" id="fps" min="6" max="60" value="24" step="1" />
+						<span class="range-value" id="fpsVal">24</span>
+					</div>
+				</div>
+				<!-- Colour mode -->
+				<div class="row">
+					<label for="mode">Colour mode</label>
+					<div class="control">
+						<select id="mode">
+							<option value="truecolor" selected>Truecolor</option>
+							<option value="palette">Palette</option>
+							<option value="kmeans">K-Means</option>
+							<option value="mono">Monochrome</option>
+							<option value="grayscale">Grayscale</option>
+						</select>
+					</div>
+				</div>
+				<!-- Palette preset -->
+				<div class="row" id="paletteRow">
+					<label for="palette">Palette</label>
+					<div class="control"
+						style="flex-direction:column; align-items:stretch; gap:4px">
+						<select id="palette">
+							<option value="realistic">Realistic</option>
+							<option value="grayscale">Grayscale</option>
+							<option value="sunset">Sunset</option>
+							<option value="ocean">Ocean</option>
+							<option value="neon">Neon</option>
+							<option value="forest">Forest</option>
+						</select>
+						<div class="palette-swatch-bar" id="paletteSwatch"></div>
+					</div>
+				</div>
+				<!-- Depth -->
+				<div class="row" id="depthRow">
+					<label for="depth">Colours</label>
+					<div class="control">
+						<input type="range" id="depth" min="2" max="64" value="16" step="1" />
+						<span class="range-value" id="depthVal">16</span>
+					</div>
+				</div>
+				<!-- Mono fg -->
+				<div class="row" id="monoFgRow">
+					<label>Foreground</label>
+					<div class="control">
+						<input type="color" id="fg" value="#00ff00" />
+						<span class="range-value" id="fgVal">#00ff00</span>
+					</div>
+				</div>
+				<!-- Mono bg -->
+				<div class="row" id="monoBgRow">
+					<label>Background</label>
+					<div class="control">
+						<input type="color" id="bg" value="#000000" />
+						<span class="range-value" id="bgVal">#000000</span>
+					</div>
+				</div>
+				<!-- Char mode -->
+				<div class="row">
+					<label for="charMode">Char mode</label>
+					<div class="control">
+						<select id="charMode">
+							<option value="ascii" selected>ASCII (edge-aware)</option>
+							<option value="block">Block (█▓▒░)</option>
+						</select>
+					</div>
+				</div>
 
-      <!-- Trim -->
-      <div class="row">
-        <label>Trim (sec)</label>
-        <div class="control">
-          <input type="number" id="start" placeholder="Start" min="0" step="0.5" style="width:48%" />
-          <input type="number" id="end" placeholder="End" min="0" step="0.5" style="width:48%" />
-        </div>
-      </div>
-      <!-- Options -->
-      <div class="row">
-        <label>Options</label>
-        <div class="control" style="flex-direction:column; align-items:flex-start; gap:8px">
-          <div class="checkbox-row">
-            <input type="checkbox" id="skipGif" />
-            <span>Skip GIF generation</span>
-          </div>
-        </div>
-      </div>
-      <!-- Foreground separation -->
-      <div class="row">
-        <label>Foreground</label>
-        <div class="control" style="flex-direction:column; align-items:flex-start; gap:8px">
-          <div class="checkbox-row">
-            <input type="checkbox" id="fgEnable" />
-            <span>Isolate subject</span>
-          </div>
-          <div class="control hidden" id="fgOptions" style="gap:8px; width:100%; flex-wrap:wrap">
-            <select id="fgMode" style="min-width:140px">
-              <option value="motion" selected>Motion mask</option>
-              <option value="ml">ML segmentation</option>
-            </select>
-            <select id="fgBackground" style="min-width:160px">
-              <option value="transparent">Transparent background</option>
-              <option value="solid" selected>Solid background</option>
-              <option value="keep">Freeze background</option>
-            </select>
-          </div>
-          <div class="control hidden" id="fgThresholdRow" style="gap:8px; width:100%; align-items:center">
-            <span style="font-size:0.75rem;color:var(--muted);min-width:60px" id="fgThresholdLabel">Sensitivity</span>
-            <input type="range" id="fgThreshold" min="5" max="80" value="20" step="1" />
-            <span class="range-value" id="fgThresholdVal">20</span>
-          </div>
-          <div class="control hidden" id="fgBgRow" style="gap:8px; width:100%">
-            <input type="color" id="fgBg" value="#000000" />
-            <span class="range-value" id="fgBgVal">#000000</span>
-          </div>
-        </div>
-      </div>
-    </div>
+				<!-- Trim -->
+				<div class="row">
+					<label>Trim</label>
+					<div class="control" style="flex-direction: column; gap: 6px;">
+						<div style="display:flex; width:100%; gap:8px;">
+							<input type="number" id="start" placeholder="Start(s)" min="0"
+								step="0.5" style="width:48%" />
+							<input type="number" id="end" placeholder="End(s)" min="0"
+								step="0.5" style="width:48%" />
+						</div>
+						<div class="dual-slider-wrapper"
+							style="position:relative; width:100%; height:24px; display:flex; align-items:center;">
+							<div
+								style="position:absolute; width:100%; height:6px; background:var(--border); border-radius:3px;">
+							</div>
+							<div id="trimFillRail"
+								style="position:absolute; height:6px; background:linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:3px; z-index:1;">
+							</div>
+							<input type="range" class="dual-slider" id="trimStartSlider"
+								min="0" max="100" value="0" step="0.1" />
+							<input type="range" class="dual-slider" id="trimEndSlider"
+								min="0" max="100" value="100" step="0.1" />
+						</div>
+					</div>
+				</div>
+				<!-- Crop -->
+				<div class="row">
+					<label>Crop</label>
+					<div class="control" style="flex-wrap: wrap; gap: 4px;">
+						<div
+							style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+							<button id="toggleCropBtn" class="btn btn-secondary"
+								style="padding: 3px 8px; font-size: 0.72rem; width:100%;">✂️
+								Toggle Crop Bounds</button>
+						</div>
+						<div style="display:none;">
+							<input type="number" id="cropW" placeholder="Width" min="0" />
+							<input type="number" id="cropH" placeholder="Height" min="0" />
+							<input type="number" id="cropX" placeholder="X" min="0" />
+							<input type="number" id="cropY" placeholder="Y" min="0" />
+						</div>
+					</div>
+				</div>
+				<!-- Options -->
+				<div class="row">
+					<label>Options</label>
+					<div class="control" style="flex-direction: column; gap: 8px;">
+						<label style="display:flex; align-items:center; gap:8px;">
+							<input type="checkbox" id="skipGif" />
+							<span>Skip GIF generation (faster processing)</span>
+						</label>
+					</div>
+				</div>
+				<!-- Brightness -->
+				<div class="row">
+					<label for="brightnessAdj">Brightness</label>
+					<div class="control">
+						<input type="range" id="brightnessAdj" min="-100" max="100" value="0" />
+						<span class="range-value" id="brightVal">0</span>
+					</div>
+				</div>
+				<!-- Contrast -->
+				<div class="row">
+					<label for="contrastAdj">Contrast</label>
+					<div class="control">
+						<input type="range" id="contrastAdj" min="-100" max="100" value="0" />
+						<span class="range-value" id="contrastVal">0</span>
+					</div>
+				</div>
+				<!-- Foreground separation -->
+				<div class="row">
+					<label>Foreground</label>
+					<div class="control"
+						style="flex-direction:column; align-items:flex-start; gap:8px">
+						<div class="checkbox-row">
+							<input type="checkbox" id="fgEnable" />
+							<span>Isolate subject</span>
+						</div>
+						<div class="control hidden" id="fgOptions"
+							style="gap:8px; width:100%; flex-wrap:wrap">
+							<select id="fgMode" style="min-width:140px">
+								<option value="motion" selected>Motion mask</option>
+								<option value="ml">ML segmentation</option>
+							</select>
+							<select id="fgBackground" style="min-width:160px">
+								<option value="transparent">Transparent background
+								</option>
+								<option value="solid" selected>Solid background</option>
+								<option value="keep">Freeze background</option>
+							</select>
+						</div>
+						<div class="control hidden" id="fgThresholdRow"
+							style="gap:8px; width:100%; align-items:center">
+							<span style="font-size:0.75rem;color:var(--muted);min-width:60px"
+								id="fgThresholdLabel">Sensitivity</span>
+							<input type="range" id="fgThreshold" min="5" max="80" value="20"
+								step="1" />
+							<span class="range-value" id="fgThresholdVal">20</span>
+						</div>
+						<div class="control hidden" id="fgBgRow" style="gap:8px; width:100%">
+							<input type="color" id="fgBg" value="#000000" />
+							<span class="range-value" id="fgBgVal">#000000</span>
+						</div>
+					</div>
+				</div>
+			</div>
 
-    <!-- Estimate -->
-    <div class="estimate hidden" id="estimateArea">
-      Estimated bundle: <span class="val" id="estimateVal">—</span>
-    </div>
+			<!-- Estimate -->
+			<div class="estimate hidden" id="estimateArea">
+				Estimated bundle: <span class="val" id="estimateVal">—</span>
+			</div>
 
-    <!-- Action buttons -->
-    <div style="display:flex; gap:8px">
-      <button class="btn btn-primary" id="convertBtn" disabled style="flex:1">▶ Convert</button>
-      <button class="btn btn-primary" id="stopBtn" style="flex:1; display:none; background:var(--danger)">■ Stop</button>
-      <button class="btn btn-secondary" id="previewFrameBtn" disabled title="Preview one frame with current settings">👁 Preview</button>
-    </div>
+			<!-- Action buttons -->
+			<div style="display:flex; gap:8px">
+				<button class="btn btn-primary" id="convertBtn" disabled style="flex:1">▶
+					Convert</button>
+				<button class="btn btn-primary" id="stopBtn"
+					style="flex:1; display:none; background:var(--danger)">■ Stop</button>
+			</div>
 
-    <!-- Progress -->
-    <div class="progress-area" id="progressArea">
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-label" id="progressLabel">Starting…</div>
-    </div>
+			<!-- Progress -->
+			<div class="progress-area" id="progressArea">
+				<div class="progress-bar-track">
+					<div class="progress-bar-fill" id="progressFill"></div>
+				</div>
+				<div class="progress-label" id="progressLabel">Starting…</div>
+			</div>
 
-    <!-- Log -->
-    <div class="log-area" id="logArea">
-      <div class="log-box" id="logBox"></div>
-    </div>
-  </div>
-</div>
+			<!-- Log -->
+			<div class="log-area" id="logArea">
+				<div class="log-box" id="logBox"></div>
+			</div>
+		</div>
+	</div>
 
-<script>
-(function() {
-  'use strict';
-
-  const $ = (s) => document.querySelector(s);
-
-  /* ── DOM refs ────────────────────────────────────────── */
-  const fileHeader    = $('#fileHeader');
-  const fileName      = $('#fileName');
-  const changeFileBtn = $('#changeFileBtn');
-  const previewBox    = $('#previewBox');
-  const previewTabs   = $('#previewTabs');
-  const tabOriginal   = $('#tabOriginal');
-  const tabConvertedGif   = $('#tabConvertedGif');
-  const tabConvertedBundle = $('#tabConvertedBundle');
-  const bundleViewer       = $('#bundleViewer');
-  const previewContent = $('#previewContent');
-  const dropZone      = $('#dropZone');
-  const fileInput     = $('#fileInput');
-  const previewVideo  = $('#previewVideo');
-  const previewGif    = $('#previewGif');
-  const webcamBar      = $('#webcamBar');
-  const webcamBtn      = $('#webcamBtn');
-  const recordStartBtn = $('#recordStartBtn');
-  const recordStopBtn  = $('#recordStopBtn');
-  const recordStatus   = $('#recordStatus');
-  const infoBar       = $('#infoBar');
-  const infoDims      = $('#infoDims');
-  const infoFps       = $('#infoFps');
-  const infoFrames    = $('#infoFrames');
-  const infoSize      = $('#infoSize');
-  const inputSelect   = $('#inputSelect');
-  const convertBtn    = $('#convertBtn');
-  const stopBtn       = $('#stopBtn');
-  const progressArea  = $('#progressArea');
-  const progressFill  = $('#progressFill');
-  const progressLabel = $('#progressLabel');
-  const tabOriginalSize = $('#tabOriginalSize');
-  const tabGifSize      = $('#tabGifSize');
-  const tabBundleSize   = $('#tabBundleSize');
-  const logArea       = $('#logArea');
-  const logBox        = $('#logBox');
-  const resultsArea   = $('#resultsArea');
-  const resultActions = $('#resultActions');
-  const undoBtn       = $('#undoBtn');
-  const estimateArea  = $('#estimateArea');
-  const estimateVal   = $('#estimateVal');
-  const previewBgBar  = $('#previewBgBar');
-  const previewBgCustom = $('#previewBgCustom');
-  const paletteSwatch = $('#paletteSwatch');
-  const framePreview  = $('#framePreview');
-  const tabFramePreview = $('#tabFramePreview');
-  const previewFrameBtn = $('#previewFrameBtn');
-
-  const widthSlider   = $('#width');
-  const widthVal      = $('#widthVal');
-  const fpsSlider     = $('#fps');
-  const fpsVal        = $('#fpsVal');
-  const modeSelect    = $('#mode');
-  const paletteRow    = $('#paletteRow');
-  const depthRow      = $('#depthRow');
-  const depthSlider   = $('#depth');
-  const depthValEl    = $('#depthVal');
-  const monoFgRow     = $('#monoFgRow');
-  const monoBgRow     = $('#monoBgRow');
-  const bundleIframe  = $('#bundleIframe');
-  const showRawJsBox  = $('#showRawJsBox');
-  const showRawJsChk  = $('#showRawJs');
-  const fgInput       = $('#fg');
-  const fgValEl       = $('#fgVal');
-  const bgInput       = $('#bg');
-  const bgValEl       = $('#bgVal');
-  const fgEnable      = $('#fgEnable');
-  const fgOptions     = $('#fgOptions');
-  const fgMode        = $('#fgMode');
-  const fgBackground  = $('#fgBackground');
-  const fgThreshold   = $('#fgThreshold');
-  const fgThresholdVal = $('#fgThresholdVal');
-  const fgBgRow       = $('#fgBgRow');
-  const fgBgInput     = $('#fgBg');
-  const fgBgVal       = $('#fgBgVal');
-  const fgThresholdRow = $('#fgThresholdRow');
-  const fgThresholdLabel = $('#fgThresholdLabel');
-
-  let selectedPath    = null;
-  let videoMeta       = null;
-  let videoFileSize   = null;
-  let blobUrl         = null;
-  let convertedGifUrl = null;
-  let convertedGifBlob = null;   // blob URL of current converted GIF
-  let convertedBundleUrl = null;  // URL for the bundle.js file
-  let bundleTextCache = null;     // cached bundle.js content
-  let conversionStartTime = null;
-  let isConverting = false;
-  let lastConvertResult = null;  // last conversion done data
-  let lastConvertOptions = null;
-  let estimateScale = 1;
-  const gifHistory    = [];      // { blobUrl, result } entries for undo
-  let webcamStream = null;
-  let mediaRecorder = null;
-  let recordedChunks = [];
-  let recordTimer = null;
-  let recordStartTime = 0;
-
-  /* ── Tab size labels ───────────────────────────────── */
-  function updateTabSizes() {
-    tabOriginalSize.textContent = videoFileSize ? '(' + formatBytes(videoFileSize) + ')' : '';
-    if (lastConvertResult) {
-      tabGifSize.textContent = lastConvertResult.gifSize ? '(' + formatBytes(lastConvertResult.gifSize) + ')' : '';
-      tabBundleSize.textContent = lastConvertResult.bundleSize ? '(' + formatBytes(lastConvertResult.bundleSize) + ')' : '';
-    } else {
-      tabGifSize.textContent = '';
-      tabBundleSize.textContent = '';
-    }
-  }
-
-  /* ── Load input/ file list ─────────────────────────── */
-  (async function loadFiles() {
-    try {
-      const res  = await fetch('/api/files');
-      const data = await res.json();
-      if (data.ok && data.files.length) {
-        data.files.forEach(f => {
-          const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
-          inputSelect.appendChild(opt);
-        });
-      }
-    } catch {}
-  })();
-
-  inputSelect.addEventListener('change', () => {
-    if (inputSelect.value) selectFromDropdown(inputSelect.value);
-  });
-
-  async function selectFromDropdown(name) {
-    videoMeta     = null;
-    videoFileSize = null;
-    if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
-    convertedGifUrl = null;
-
-    showFileSelected(name);
-    selectedPath = name;
-    await probeFile(name);
-
-    if (!selectedPath) return;
-    previewVideo.src = '/api/video?path=' + encodeURIComponent(selectedPath);
-    previewVideo.classList.remove('hidden');
-    previewVideo.play().catch(() => {});
-    dropZone.classList.add('hidden');
-  }
-
-  changeFileBtn.addEventListener('click', () => resetFileSelection());
-
-  function resetFileSelection() {
-    selectedPath    = null;
-    videoMeta       = null;
-    videoFileSize   = null;
-    convertedGifUrl = null;
-    convertedGifBlob = null;
-    lastConvertResult = null;
-    lastConvertOptions = null;
-    estimateScale = 1;
-    gifHistory.forEach(h => URL.revokeObjectURL(h.blobUrl));
-    gifHistory.length = 0;
-    if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
-
-    fileHeader.classList.add('hidden');
-    previewTabs.classList.add('hidden');
-    previewVideo.classList.add('hidden');
-    previewGif.classList.add('hidden');
-    dropZone.classList.remove('hidden');
-    infoBar.classList.add('hidden');
-    estimateArea.classList.add('hidden');
-    resultsArea.classList.remove('active');
-    undoBtn.classList.add('hidden');
-    resetPreviewBg();
-    resetSliderMaxes();
-    updateTabSizes();
-    convertBtn.disabled = true;
-    previewFrameBtn.disabled = true;
-    inputSelect.value = '';
-    previewVideo.src = '';
-    tabOriginal.classList.add('active');
-    tabConvertedGif.classList.remove('active');
-    tabConvertedGif.disabled = true;
-    tabConvertedBundle.classList.remove('active');
-    tabConvertedBundle.disabled = true;
-    tabFramePreview.classList.remove('active');
-    tabFramePreview.disabled = true;
-    framePreview.classList.add('hidden');
-    bundleViewer.classList.add('hidden');
-    bundleIframe.classList.add('hidden');
-    bundleIframe.src = 'about:blank';
-    bundleViewer.innerHTML = '<span class="bundle-viewer-empty">No bundle yet.</span>';
-    framePreviewHtml = null;
-    convertedBundleUrl = null;
-    bundleTextCache = null;
-
-    stopWebcam();
-  }
-
-  /* ── Drag & drop ───────────────────────────────────── */
-  previewContent.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('drag-over');
-  });
-  previewContent.addEventListener('dragleave', () => {
-    dropZone.classList.remove('drag-over');
-  });
-  previewContent.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  });
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) handleFile(fileInput.files[0]);
-  });
-
-  function stopWebcam() {
-    if (webcamStream) {
-      webcamStream.getTracks().forEach(t => t.stop());
-      webcamStream = null;
-    }
-    previewVideo.srcObject = null;
-    mediaRecorder = null;
-    recordedChunks = [];
-    if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
-    webcamBar.classList.add('hidden');
-    recordStartBtn.disabled = true;
-    recordStopBtn.disabled = true;
-    recordStatus.textContent = 'Ready';
-  }
-
-  webcamBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      previewVideo.srcObject = webcamStream;
-      previewVideo.classList.remove('hidden');
-      previewVideo.muted = true;
-      previewVideo.play().catch(() => {});
-      dropZone.classList.add('hidden');
-      previewGif.classList.add('hidden');
-      previewTabs.classList.add('hidden');
-      tabConvertedGif.disabled = true;
-      tabConvertedBundle.disabled = true;
-      webcamBar.classList.remove('hidden');
-      recordStartBtn.disabled = false;
-      recordStopBtn.disabled = true;
-      recordStatus.textContent = 'Ready';
-    } catch (err) {
-      appendLog('Webcam error: ' + err.message, 'error');
-      logArea.classList.add('active');
-    }
-  });
-
-  recordStartBtn.addEventListener('click', () => {
-    if (!webcamStream) return;
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm' });
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const file = new File([blob], 'webcam_' + ts + '.webm', { type: 'video/webm' });
-      stopWebcam();
-      await handleFile(file, true);
-    };
-    mediaRecorder.start();
-    recordStartTime = Date.now();
-    recordStatus.textContent = 'Recording — 0:00';
-    recordTimer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
-      const m = Math.floor(elapsed / 60);
-      const s = String(elapsed % 60).padStart(2, '0');
-      recordStatus.textContent = 'Recording — ' + m + ':' + s;
-    }, 100);
-    recordStartBtn.disabled = true;
-    recordStopBtn.disabled = false;
-  });
-
-  recordStopBtn.addEventListener('click', () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-    }
-  });
-
-  async function handleFile(file, forceUpload) {
-    videoMeta       = null;
-    videoFileSize   = file.size;
-    convertedGifUrl = null;
-
-    showFileSelected(file.name);
-
-    /* Immediate blob preview */
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
-    blobUrl = URL.createObjectURL(file);
-    previewVideo.src = blobUrl;
-    previewVideo.classList.remove('hidden');
-    previewVideo.load();
-    previewVideo.play().catch(() => {});
-    dropZone.classList.add('hidden');
-
-    /* Try resolving by filename first (may already be in input/) */
-    let resolved = false;
-    if (!forceUpload) try {
-      const probeRes = await fetch('/api/probe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: file.name }),
-      });
-      const probeData = await probeRes.json();
-      if (probeData.ok && probeData.resolvedPath) {
-        selectedPath = probeData.resolvedPath;
-        videoMeta = probeData.meta || null;
-        if (probeData.fileSize) videoFileSize = probeData.fileSize;
-        clampSlidersToSource();
-        updateInfoBar('original');
-        updateEstimate();
-        convertBtn.disabled = false;
-        previewFrameBtn.disabled = false;
-        resolved = true;
-      }
-    } catch {}
-
-    /* If not found by name, upload the file to input/ */
-    if (!resolved) {
-      try {
-        const upRes  = await fetch('/api/upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/octet-stream',
-            'X-Filename': encodeURIComponent(file.name),
-          },
-          body: file,
-        });
-        const upData = await upRes.json();
-        if (upData.ok) {
-          selectedPath = upData.resolvedPath;
-          await probeFile(selectedPath);
-        } else {
-          appendLog('Upload failed: ' + (upData.error || 'Unknown error'), 'error');
-          logArea.classList.add('active');
-        }
-      } catch (err) {
-        appendLog('Upload error: ' + err.message, 'error');
-        logArea.classList.add('active');
-      }
-    }
-  }
-
-  function showFileSelected(name) {
-    fileHeader.classList.remove('hidden');
-    fileName.textContent = name;
-    dropZone.classList.add('hidden');
-    previewGif.classList.add('hidden');
-    previewTabs.classList.add('hidden');
-    tabConvertedGif.disabled = true;
-    tabConvertedBundle.disabled = true;
-    convertedGifUrl = null;
-    convertedBundleUrl = null;
-    bundleTextCache = null;
-  }
-
-  async function probeFile(path) {
-    try {
-      const res  = await fetch('/api/probe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
-      });
-      const data = await res.json();
-      videoMeta = data.meta || null;
-      if (data.resolvedPath) selectedPath = data.resolvedPath;
-      if (data.fileSize) videoFileSize = data.fileSize;
-
-      if (!data.ok && !data.resolvedPath) {
-        convertBtn.disabled = true;
-        previewFrameBtn.disabled = true;
-        return;
-      }
-      clampSlidersToSource();
-      updateInfoBar('original');
-      updateEstimate();
-      convertBtn.disabled = false;
-      previewFrameBtn.disabled = false;
-    } catch {
-      videoMeta = null;
-    }
-  }
-
-  function clampSlidersToSource() {
-    if (!videoMeta) return;
-    if (videoMeta.width) {
-      const maxW = videoMeta.width;
-      widthSlider.max = maxW;
-      if (parseInt(widthSlider.value) > maxW) {
-        widthSlider.value = maxW;
-        widthVal.textContent = maxW;
-      }
-    }
-    if (videoMeta.fps) {
-      const maxFps = Math.round(videoMeta.fps);
-      fpsSlider.max = maxFps;
-      if (parseInt(fpsSlider.value) > maxFps) {
-        fpsSlider.value = maxFps;
-        fpsVal.textContent = maxFps;
-      }
-    }
-  }
-
-  function resetSliderMaxes() {
-    widthSlider.max = 200;
-    fpsSlider.max = 60;
-  }
-
-  function updateInfoBar(tab) {
-    const isConverted = tab === 'converted' && lastConvertResult;
-    if (isConverted) {
-      const d = lastConvertResult;
-      infoBar.classList.remove('hidden');
-      infoDims.textContent = d.width + '×' + d.height;
-      infoFps.textContent = parseFloat(d.fps).toFixed(1);
-      infoFrames.textContent = (d.totalFrames || d.frames || 0).toLocaleString();
-      const parts = [];
-      if (d.bundleSize) parts.push(formatBytes(d.bundleSize) + ' bundle');
-      if (d.gifSize) parts.push(formatBytes(d.gifSize) + ' GIF');
-      infoSize.textContent = parts.join(' · ') || '—';
-      if (d.width && d.height) previewGif.style.aspectRatio = d.width + ' / ' + d.height;
-    } else if (videoMeta) {
-      infoBar.classList.remove('hidden');
-      if (videoMeta.width && videoMeta.height) infoDims.textContent = videoMeta.width + '×' + videoMeta.height;
-      if (videoMeta.fps) infoFps.textContent = videoMeta.fps.toFixed(1);
-      if (videoMeta.duration && videoMeta.fps) {
-        infoFrames.textContent = Math.round(videoMeta.duration * videoMeta.fps).toLocaleString();
-      }
-      infoSize.textContent = videoFileSize ? formatBytes(videoFileSize) : '—';
-      if (videoMeta.width && videoMeta.height) previewVideo.style.aspectRatio = videoMeta.width + ' / ' + videoMeta.height;
-    } else {
-      return;
-    }
-    updateTabSizes();
-  }
-
-  /* ── Estimate bundle size ──────────────────────────── */
-  function estimateBundleBase({ w, h, frames, mode }) {
-    const bpc = mode === 'mono' ? 0.12 : mode === 'palette' ? 0.35 : 0.5;
-    return Math.round(w * h * frames * bpc * 0.75 + 18000);
-  }
-
-  function updateEstimate() {
-    if (!videoMeta) { estimateArea.classList.add('hidden'); return; }
-    const w   = parseInt(widthSlider.value);
-    const fps = parseInt(fpsSlider.value);
-    const mode = modeSelect.value;
-    const aspect = (videoMeta.height || 480) / (videoMeta.width || 640);
-    const h = Math.round(w * aspect * 0.75);  // CELL_W/CELL_H = 6/8 = 0.75
-    const dur = videoMeta.duration || 10;
-    const trimS = parseFloat($('#start').value) || 0;
-    const trimE = parseFloat($('#end').value) || dur;
-    const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
-    const frames = Math.max(1, Math.round(effDur * fps));
-    const base = estimateBundleBase({ w, h, frames, mode });
-    const est = Math.round(base * estimateScale);
-    estimateArea.classList.remove('hidden');
-    estimateVal.textContent = '~' + formatBytes(est);
-  }
-
-  /* ── Slider / control sync ─────────────────────────── */
-  widthSlider.oninput = () => { widthVal.textContent = widthSlider.value; updateEstimate(); };
-  fpsSlider.oninput   = () => { fpsVal.textContent   = fpsSlider.value;   updateEstimate(); };
-  depthSlider.oninput = () => { depthValEl.textContent = depthSlider.value; updateEstimate(); };
-
-  /* ── Editable slider values (click to type) ─────────── */
-  function makeEditable(spanEl, sliderEl, opts = {}) {
-    spanEl.addEventListener('click', () => {
-      if (spanEl.querySelector('input')) return;
-      const cur = sliderEl.value;
-      const inp = document.createElement('input');
-      inp.type = 'number';
-      inp.className = 'range-value-input';
-      inp.value = cur;
-      inp.min = opts.min ?? sliderEl.min;
-      inp.max = opts.max ?? sliderEl.max;
-      inp.step = sliderEl.step || 1;
-      spanEl.textContent = '';
-      spanEl.appendChild(inp);
-      inp.focus();
-      inp.select();
-      const commit = () => {
-        let v = parseInt(inp.value);
-        const lo = parseInt(inp.min), hi = parseInt(inp.max);
-        if (isNaN(v)) v = parseInt(cur);
-        v = Math.max(lo, Math.min(hi, v));
-        sliderEl.value = v;
-        spanEl.textContent = v;
-        sliderEl.dispatchEvent(new Event('input'));
-      };
-      inp.addEventListener('blur', commit);
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
-        if (e.key === 'Escape') { spanEl.textContent = cur; }
-      });
-    });
-  }
-  makeEditable(widthVal, widthSlider);
-  makeEditable(fpsVal, fpsSlider);
-  makeEditable(depthValEl, depthSlider);
-  makeEditable(fgThresholdVal, fgThreshold);
-  fgInput.oninput     = () => { fgValEl.textContent   = fgInput.value; };
-  bgInput.oninput     = () => { bgValEl.textContent   = bgInput.value; };
-  fgThreshold.oninput   = () => { fgThresholdVal.textContent = fgThreshold.value; };
-  fgBgInput.oninput     = () => { fgBgVal.textContent = fgBgInput.value; };
-  fgEnable.onchange     = () => { updateForegroundFields(); };
-  fgBackground.onchange = () => { updateForegroundFields(); };
-  fgMode.onchange       = () => { updateForegroundFields(); };
-  modeSelect.onchange   = () => { updateModeFields(); updateEstimate(); };
-  $('#start').addEventListener('input', updateEstimate);
-  $('#end').addEventListener('input', updateEstimate);
-
-  function updateModeFields() {
-    const m = modeSelect.value;
-    paletteRow.classList.toggle('hidden', m !== 'palette');
-    depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans' && m !== 'grayscale');
-    monoFgRow.classList.toggle('hidden', m !== 'mono');
-    monoBgRow.classList.toggle('hidden', m !== 'mono');
-    // Update palette swatches visibility
-    if (m === 'palette') updatePaletteSwatches();
-    else paletteSwatch.innerHTML = '';
-  }
-  updateModeFields();
-
-  function updateForegroundFields() {
-    const enabled = fgEnable.checked;
-    const mode = fgMode.value;
-    fgOptions.classList.toggle('hidden', !enabled);
-    fgThresholdRow.classList.toggle('hidden', !enabled);
-    const showBg = enabled && fgBackground.value === 'solid';
-    fgBgRow.classList.toggle('hidden', !showBg);
-
-    // Mode-specific threshold label and range
-    if (mode === 'ml') {
-      fgThresholdLabel.textContent = 'Confidence';
-      fgThreshold.min = 10;
-      fgThreshold.max = 90;
-      // Set a sensible ML default if the value looks like a motion default
-      if (parseInt(fgThreshold.value) < 30) {
-        fgThreshold.value = 50;
-        fgThresholdVal.textContent = '50';
-      }
-    } else {
-      fgThresholdLabel.textContent = 'Sensitivity';
-      fgThreshold.min = 5;
-      fgThreshold.max = 80;
-    }
-  }
-  updateForegroundFields();
-
-  /* ── Preview background colour ─────────────────────── */
-  const CHECKERBOARD_CSS = 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 16px 16px';
-  let currentPreviewBg = '#000000';
-
-  previewBgBar.addEventListener('click', (e) => {
-    const btn = e.target.closest('.swatch-btn');
-    if (!btn) return;
-    previewBgBar.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    applyPreviewBg(btn.dataset.bg);
-  });
-  previewBgCustom.addEventListener('input', () => {
-    previewBgBar.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
-    applyPreviewBg(previewBgCustom.value);
-  });
-
-  function applyPreviewBg(bg) {
-    currentPreviewBg = bg;
-    const targets = [previewGif, previewContent, framePreview, bundleViewer];
-    if (bg === 'checkerboard') {
-      targets.forEach(el => el.style.background = CHECKERBOARD_CSS);
-    } else {
-      targets.forEach(el => el.style.background = bg);
-    }
-    // Also set iframe player background via postMessage
-    try { bundleIframe.contentWindow.postMessage({ type: 'set-bg', color: bg === 'checkerboard' ? '#111' : bg }, '*'); } catch {}
-  }
-  function resetPreviewBg() {
-    [previewGif, previewContent, framePreview, bundleViewer].forEach(el => el.style.background = '');
-    previewBgBar.classList.add('hidden');
-    showRawJsBox.classList.add('hidden');
-  }
-  function showPreviewBgBar() {
-    previewBgBar.classList.remove('hidden');
-    // Auto-set first active swatch
-    const first = previewBgBar.querySelector('.swatch-btn');
-    if (first && !previewBgBar.querySelector('.swatch-btn.active')) {
-      first.classList.add('active');
-    }
-  }
-
-  /* ── Palette swatch preview ────────────────────────── */
-  const GRADIENT_PRESETS = {
-    realistic: [[12,18,30],[40,80,140],[120,160,120],[200,170,120],[220,220,210]],
-    grayscale: [[0,0,0],[255,255,255]],
-    sunset:    [[255,94,58],[255,149,0],[255,204,0]],
-    ocean:     [[0,24,72],[0,118,255],[0,217,255]],
-    neon:      [[57,255,20],[0,255,255],[255,0,255]],
-    forest:    [[16,64,32],[34,139,34],[154,205,50]],
-  };
-
-  function interpolatePalette(stops, count) {
-    const pal = [];
-    const n = Math.max(2, count);
-    const segs = stops.length - 1;
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1);
-      const seg = Math.min(segs - 1, Math.floor(t * segs));
-      const lt = (t - seg / segs) * segs;
-      const a = stops[seg], b = stops[seg + 1];
-      pal.push([
-        Math.round(a[0] + (b[0] - a[0]) * lt),
-        Math.round(a[1] + (b[1] - a[1]) * lt),
-        Math.round(a[2] + (b[2] - a[2]) * lt),
-      ]);
-    }
-    return pal;
-  }
-
-  function updatePaletteSwatches() {
-    paletteSwatch.innerHTML = '';
-    const name = $('#palette').value;
-    const depth = parseInt($('#depth').value);
-    const stops = GRADIENT_PRESETS[name];
-    if (!stops) return;
-    let colors;
-    if (name === 'grayscale') {
-      colors = [];
-      for (let i = 0; i < depth; i++) {
-        const v = Math.round((i / (depth - 1)) * 255);
-        colors.push([v, v, v]);
-      }
-    } else {
-      colors = interpolatePalette(stops, depth);
-    }
-    colors.forEach(([r, g, b]) => {
-      const s = document.createElement('span');
-      s.className = 'swatch';
-      s.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
-      s.title = 'rgb(' + r + ', ' + g + ', ' + b + ')';
-      paletteSwatch.appendChild(s);
-    });
-  }
-
-  $('#palette').addEventListener('change', updatePaletteSwatches);
-  depthSlider.addEventListener('input', updatePaletteSwatches);
-  updatePaletteSwatches();
-
-  /* ── Single-frame preview ──────────────────────────── */
-  let framePreviewHtml = null;
-
-  previewFrameBtn.addEventListener('click', async () => {
-    if (!selectedPath) return;
-    previewFrameBtn.disabled = true;
-    previewFrameBtn.textContent = '⏳ Loading…';
-    logArea.classList.add('active');
-    appendLog('Generating single-frame preview…');
-
-    const mode = modeSelect.value;
-    const opts = {
-      inputPath: selectedPath,
-      width:     parseInt(widthSlider.value),
-      mode,
-      charMode:  $('#charMode').value,
-      depth:     parseInt($('#depth').value),
-      palette:   $('#palette').value,
-      fg:        fgInput.value,
-      bg:        bgInput.value,
-    };
-
-    try {
-      const res = await fetch('/api/preview-frame', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(opts),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        framePreviewHtml = data.html;
-        framePreview.innerHTML = data.html;
-        tabFramePreview.disabled = false;
-        previewTabs.classList.remove('hidden');
-        tabFramePreview.click();
-        appendLog('Frame preview ready!', 'success');
-      } else {
-        appendLog('Preview error: ' + data.error, 'error');
-      }
-    } catch (err) {
-      appendLog('Preview fetch error: ' + err.message, 'error');
-    }
-    previewFrameBtn.disabled = false;
-    previewFrameBtn.textContent = '👁 Preview';
-  });
-
-  tabFramePreview.addEventListener('click', () => {
-    if (!framePreviewHtml) return;
-    tabFramePreview.classList.add('active');
-    tabOriginal.classList.remove('active');
-    tabConvertedGif.classList.remove('active');
-    tabConvertedBundle.classList.remove('active');
-    previewContent.classList.remove('bundle-active');
-    previewVideo.classList.add('hidden');
-    previewGif.classList.add('hidden');
-    bundleViewer.classList.add('hidden');
-    bundleIframe.classList.add('hidden');
-    framePreview.classList.remove('hidden');
-    previewVideo.pause();
-    resultsArea.classList.remove('active');
-    showPreviewBgBar();
-    showRawJsBox.classList.add('hidden');
-    applyPreviewBg(currentPreviewBg);
-  });
-
-  /* ── Preview tabs ──────────────────────────────────── */
-  tabOriginal.addEventListener('click', () => {
-    tabOriginal.classList.add('active');
-    tabConvertedGif.classList.remove('active');
-    tabConvertedBundle.classList.remove('active');
-    tabFramePreview.classList.remove('active');
-    previewContent.classList.remove('bundle-active');
-    previewVideo.classList.remove('hidden');
-    previewGif.classList.add('hidden');
-    bundleViewer.classList.add('hidden');
-    bundleIframe.classList.add('hidden');
-    framePreview.classList.add('hidden');
-    previewVideo.play().catch(() => {});
-    updateInfoBar('original');
-    resultsArea.classList.remove('active');
-    resetPreviewBg();
-  });
-  tabConvertedGif.addEventListener('click', () => {
-    if (!convertedGifBlob) return;
-    tabConvertedGif.classList.add('active');
-    tabOriginal.classList.remove('active');
-    tabConvertedBundle.classList.remove('active');
-    tabFramePreview.classList.remove('active');
-    previewContent.classList.remove('bundle-active');
-    previewGif.classList.remove('hidden');
-    previewVideo.classList.add('hidden');
-    bundleViewer.classList.add('hidden');
-    bundleIframe.classList.add('hidden');
-    framePreview.classList.add('hidden');
-    previewVideo.pause();
-    updateInfoBar('converted');
-    if (lastConvertResult) resultsArea.classList.add('active');
-    showPreviewBgBar();
-    applyPreviewBg(currentPreviewBg);
-  });
-  function buildBundlePreviewHtml(bundleUrl) {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ascii-fy bundle preview</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #111; }
-    #player { transform-origin: top left; }
-    #player pre { margin: 0; padding: 0 !important; }
-  </style>
-</head>
-<body>
-  <div id="player"></div>
-  <script src="${bundleUrl}"><\/script>
-  <script>
-    (function() {
-      var player = null;
-      var el = document.getElementById('player');
-      function setBg(color) {
-        var c = color || '#111';
-        document.body.style.background = c;
-        if (player && player._pre) { player._pre.style.background = c; }
-      }
-      function fitToWindow() {
-        if (!player || !player._pre) return;
-        // Reset scale to measure natural size
-        el.style.transform = 'none';
-        var natW = player._pre.scrollWidth;
-        var natH = player._pre.scrollHeight;
-        if (!natW || !natH) return;
-        var scaleX = window.innerWidth / natW;
-        var scaleY = window.innerHeight / natH;
-        var scale = Math.min(scaleX, scaleY);
-        el.style.transform = 'scale(' + scale + ')';
-      }
-      window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'set-bg') setBg(e.data.color);
-      });
-      window.addEventListener('resize', fitToWindow);
-      AsciiPlayer.fromCompressed(__ASCII_COMPRESSED__).then(function(p) {
-        player = p;
-        player.mount(el);
-        if (player._pre) { player._pre.style.padding = '0'; player._pre.style.margin = '0'; }
-        player.play();
-        requestAnimationFrame(function() { requestAnimationFrame(fitToWindow); });
-      });
-    })();
-  <\/script>
+	<script type="module" src="/app.js"></script>
 </body>
-</html>`;
-  }
 
-  function loadBundlePreview() {
-    if (!convertedBundleUrl) return;
-    if (bundleIframe.dataset.bundleUrl !== convertedBundleUrl) {
-      bundleIframe.dataset.bundleUrl = convertedBundleUrl;
-      bundleIframe.srcdoc = buildBundlePreviewHtml(convertedBundleUrl);
-      bundleIframe.onload = () => applyPreviewBg(currentPreviewBg);
-    }
-  }
-
-  tabConvertedBundle.addEventListener('click', async () => {
-    if (!convertedBundleUrl) return;
-    tabConvertedBundle.classList.add('active');
-    tabOriginal.classList.remove('active');
-    tabConvertedGif.classList.remove('active');
-    tabFramePreview.classList.remove('active');
-    previewContent.classList.add('bundle-active');
-    previewVideo.classList.add('hidden');
-    previewGif.classList.add('hidden');
-    framePreview.classList.add('hidden');
-    previewVideo.pause();
-    if (lastConvertResult) resultsArea.classList.add('active');
-    showPreviewBgBar();
-    showRawJsBox.classList.remove('hidden');
-
-    if (showRawJsChk.checked) {
-      // Show raw JS text
-      bundleIframe.classList.add('hidden');
-      bundleViewer.classList.remove('hidden');
-      if (!bundleTextCache) {
-        try {
-          bundleViewer.textContent = 'Loading bundle.js…';
-          const resp = await fetch(convertedBundleUrl + '?t=' + Date.now());
-          bundleTextCache = await resp.text();
-        } catch (err) {
-          bundleTextCache = '// Failed to load bundle.js: ' + err.message;
-        }
-      }
-      bundleViewer.textContent = bundleTextCache;
-    } else {
-      // Show animation iframe
-      bundleViewer.classList.add('hidden');
-      bundleIframe.classList.remove('hidden');
-      loadBundlePreview();
-    }
-    applyPreviewBg(currentPreviewBg);
-  });
-
-  /* ── Show raw .js toggle ───────────────────────────── */
-  showRawJsChk.addEventListener('change', () => {
-    if (tabConvertedBundle.classList.contains('active')) {
-      tabConvertedBundle.click();
-    }
-  });
-
-  /* ── Undo GIF ──────────────────────────────────────── */
-  undoBtn.addEventListener('click', () => {
-    if (!gifHistory.length) return;
-    const prev = gifHistory.pop();
-    // Release current blob
-    if (convertedGifBlob) URL.revokeObjectURL(convertedGifBlob);
-    convertedGifBlob = prev.blobUrl;
-    lastConvertResult = prev.result;
-    previewGif.src = convertedGifBlob;
-    updateInfoBar('converted');
-    if (lastConvertResult) showResults(lastConvertResult);
-    undoBtn.disabled = gifHistory.length === 0;
-  });
-
-  /* ── Convert / Stop ─────────────────────────────────── */
-  convertBtn.addEventListener('click', startConvert);
-  stopBtn.addEventListener('click', async () => {
-    try { await fetch('/api/abort', { method: 'POST' }); } catch {}
-    stopBtn.disabled = true;
-    stopBtn.textContent = 'Stopping…';
-  });
-
-  async function startConvert() {
-    if (!selectedPath) return;
-    convertBtn.style.display = 'none';
-    stopBtn.style.display = '';
-    stopBtn.disabled = false;
-    stopBtn.textContent = '■ Stop';
-    isConverting = true;
-    conversionStartTime = Date.now();
-
-    progressArea.classList.add('active');
-    progressFill.style.width = '0%';
-    progressLabel.textContent = 'Starting…';
-    logArea.classList.add('active');
-    logBox.innerHTML = '';
-    resultsArea.classList.remove('active');
-
-    const mode = modeSelect.value;
-    const opts = {
-      inputPath: selectedPath,
-      width:    parseInt(widthSlider.value),
-      fps:      parseInt(fpsSlider.value),
-      mode,
-      charMode: $('#charMode').value,
-      depth:    parseInt($('#depth').value),
-      palette:  $('#palette').value,
-      fg:       fgInput.value,
-      bg:       bgInput.value,
-      playerBg: mode === 'mono' ? undefined : 'auto',
-      start:    parseFloat($('#start').value) || undefined,
-      end:      parseFloat($('#end').value)   || undefined,
-      skipGif:  $('#skipGif').checked,
-    };
-
-    lastConvertOptions = {
-      mode,
-      width: opts.width,
-      fps: opts.fps,
-    };
-
-    if (fgEnable.checked) {
-      opts.foreground = {
-        mode: fgMode.value,
-        background: fgBackground.value,
-        threshold: parseInt(fgThreshold.value),
-        bg: fgBgInput.value,
-      };
-    }
-
-    try {
-      await fetch('/api/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(opts),
-      });
-    } catch (err) {
-      appendLog('Fetch error: ' + err.message, 'error');
-      isConverting = false;
-      conversionStartTime = null;
-      convertBtn.style.display = '';
-      stopBtn.style.display = 'none';
-      convertBtn.disabled = false;
-    }
-  }
-
-  /* ── SSE ───────────────────────────────────────────── */
-  const evtSource = new EventSource('/events');
-
-  evtSource.addEventListener('progress', (e) => {
-    const d = JSON.parse(e.data);
-    if (d.percent != null) {
-      progressFill.style.width = d.percent + '%';
-      let label = 'Frame ' + d.frame + '/' + d.total + ' (' + d.percent + '%)';
-      // ETA calculation
-      if (conversionStartTime && d.frame > 1 && d.total) {
-        const elapsed = (Date.now() - conversionStartTime) / 1000;
-        const perFrame = elapsed / (d.frame - 1);
-        const remaining = Math.max(0, (d.total - d.frame) * perFrame);
-        if (remaining < 60) {
-          label += ' — ~' + Math.ceil(remaining) + 's left';
-        } else {
-          const m = Math.floor(remaining / 60);
-          const s = Math.ceil(remaining % 60);
-          label += ' — ~' + m + 'm ' + s + 's left';
-        }
-      }
-      progressLabel.textContent = label;
-    } else {
-      progressLabel.textContent = 'Frame ' + d.frame + '…';
-    }
-  });
-
-  evtSource.addEventListener('log', (e) => {
-    appendLog(JSON.parse(e.data).msg);
-  });
-
-  evtSource.addEventListener('done', async (e) => {
-    const d = JSON.parse(e.data);
-    if (d.ok) {
-      progressFill.style.width = '100%';
-      progressLabel.textContent = 'Done!';
-      appendLog('Conversion complete!', 'success');
-
-      lastConvertResult = d;
-      convertedBundleUrl = d.bundleUrl || null;
-      bundleTextCache = null;           // force re-fetch on next view
-      bundleIframe.src = 'about:blank'; // reset iframe for fresh load
-      bundleIframe.removeAttribute('srcdoc');
-      bundleIframe.dataset.bundleUrl = '';
-      previewTabs.classList.remove('hidden');
-      tabConvertedBundle.disabled = !convertedBundleUrl;
-
-      /* Show converted GIF in preview */
-      if (d.gifUrl) {
-        // Push previous GIF to undo history
-        if (convertedGifBlob && lastConvertResult) {
-          gifHistory.push({ blobUrl: convertedGifBlob, result: lastConvertResult });
-        }
-
-        // Fetch new GIF and store as blob URL (survives file overwrite)
-        try {
-          const resp = await fetch(d.gifUrl + '?t=' + Date.now());
-          const blob = await resp.blob();
-          convertedGifBlob = URL.createObjectURL(blob);
-        } catch {
-          convertedGifBlob = d.gifUrl;
-        }
-
-        convertedGifUrl = d.gifUrl;
-        previewGif.src = convertedGifBlob;
-        tabConvertedGif.disabled = false;
-      }
-
-      if (lastConvertOptions && d.bundleSize && (d.totalFrames || d.frames)) {
-        const base = estimateBundleBase({
-          w: d.width,
-          h: d.height,
-          frames: d.totalFrames || d.frames,
-          mode: lastConvertOptions.mode,
-        });
-        if (base > 0) {
-          const ratio = d.bundleSize / base;
-          estimateScale = Math.max(0.5, Math.min(4, ratio));
-          updateEstimate();
-        }
-      }
-
-      // Show/hide undo button
-      undoBtn.classList.toggle('hidden', gifHistory.length === 0);
-      undoBtn.disabled = gifHistory.length === 0;
-
-      showResults(d);
-      updateTabSizes();
-      /* Auto-switch to GIF tab if available, otherwise bundle.
-         Always re-click to force content refresh with new data. */
-      if (!tabConvertedGif.disabled) {
-        tabConvertedGif.click();
-      } else if (!tabConvertedBundle.disabled) {
-        tabConvertedBundle.click();
-      }
-    } else {
-      appendLog('Error: ' + d.error, 'error');
-      progressFill.style.width = '100%';
-      progressFill.style.background = 'var(--danger)';
-      progressLabel.textContent = 'Conversion failed';
-      setTimeout(() => { progressFill.style.background = ''; }, 4000);
-    }
-    isConverting = false;
-    conversionStartTime = null;
-    convertBtn.style.display = '';
-    stopBtn.style.display = 'none';
-    convertBtn.disabled = false;
-  });
-
-  function appendLog(msg, cls) {
-    const div = document.createElement('div');
-    div.textContent = msg;
-    if (cls) div.className = cls;
-    logBox.appendChild(div);
-    logBox.scrollTop = logBox.scrollHeight;
-  }
-
-  function formatBytes(b) {
-    if (b < 1024)        return b + ' B';
-    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
-    return (b / 1024 / 1024).toFixed(1) + ' MB';
-  }
-
-  function showResults(d) {
-    resultsArea.classList.add('active');
-    resultActions.innerHTML = '';
-    if (d.htmlPath) addAction('Open Player', d.htmlPath);
-    if (d.gifPath)  addAction('Open GIF', d.gifPath);
-    if (d.outputDir) addAction('Show Folder', d.outputDir);
-  }
-
-  function addAction(label, path) {
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-secondary';
-    btn.textContent = label;
-    btn.onclick = () => {
-      fetch('/api/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
-      });
-    };
-    resultActions.appendChild(btn);
-  }
-})();
-</script>
-</body>
 </html>

@@ -35,8 +35,13 @@ To use `ascii-fy` within your own Node.js projects, you can install it directly 
 npm install github:iman-hussain/ASCII-fy
 # OR
 npm install /path/to/extracted/ASCII-fy/folder
-```
 > Requires Node.js >= 18. FFmpeg bindings are handled automatically via `ffmpeg-static`.
+
+> [!TIP]
+> **Permission Issues?** If you are running `ascii-fy` on Linux or via Docker and encounter `EACCES` permission errors when generating animations, ensure your user owns the project root so Node can generate the `output` folder:
+> ```bash
+> sudo chown -R $USER output
+> ```
 
 ---
 
