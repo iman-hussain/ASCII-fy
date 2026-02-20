@@ -1,33 +1,37 @@
 {
-  "name": "ascii-fy",
-  "version": "1.0.0",
-  "description": "High-performance CLI tool to convert video files into ASCII art animations for the web",
-  "type": "module",
-  "bin": {
-    "ascii-fy": "./index.js"
-  },
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "gui": "node gui/server.js"
-  },
-  "keywords": [
-    "ascii",
-    "video",
-    "converter",
-    "cli",
-    "animation"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "cli-progress": "^3.12.0",
-    "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^3.1.0",
-    "gifenc": "^1.0.3",
-    "inquirer": "^9.2.12",
-    "log-update": "^6.0.0",
-    "onnxruntime-node": "^1.18.0",
-    "ora": "^8.0.1",
-    "pako": "^2.1.0"
-  }
+	"name": "ascii-fy",
+	"version": "1.0.0",
+	"description": "High-performance CLI tool to convert video files into ASCII art animations for the web",
+	"type": "module",
+	"bin": {
+		"ascii-fy": "./index.js"
+	},
+	"main": "./lib/api.js",
+	"exports": {
+		".": "./lib/api.js"
+	},
+	"scripts": {
+		"start": "node index.js",
+		"gui": "node gui/server.js",
+		"test": "node --test tests/*.test.js"
+	},
+	"keywords": [
+		"ascii",
+		"video",
+		"converter",
+		"cli",
+		"animation"
+	],
+	"license": "MIT",
+	"dependencies": {
+		"cli-progress": "^3.12.0",
+		"ffmpeg-static": "^5.2.0",
+		"ffprobe-static": "^3.1.0",
+		"gifenc": "^1.0.3",
+		"inquirer": "^9.2.12",
+		"log-update": "^6.0.0",
+		"onnxruntime-node": "^1.18.0",
+		"ora": "^8.0.1",
+		"pako": "^2.1.0"
+	}
 }

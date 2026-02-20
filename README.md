@@ -1,141 +1,131 @@
 # ascii-fy
 
-| Original (3.mb)| ASCII Preview (0.3mb) |
-| --- | --- |
+| Original (3.mb)                | ASCII Preview (0.3mb)    |
+| ------------------------------ | ------------------------ |
 | ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
 
-High-performance CLI and GUI tool that converts video files into lightweight ASCII art animations for the web.
+**ascii-fy** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint, making it incredibly suitable for constrained environments (e.g. 2 vCPUs, 4GB RAM) where it must safely coexist with other workloads. The architecture leverages Node.js streaming and native Run-Length Encoding to ensure memory efficiency and CPU bound scaling natively.
 
-## Features
+It operates seamlessly as a **Standalone Interactive CLI/GUI** and as a **Programmatic NPM Library**, allowing for flexible standalone consumption or direct integrations inside your backend environments.
 
-- **Stream-based architecture** – FFmpeg pipes raw frames directly to Node.js; no temporary files are written to disk.
-- **Resolution-safe** – Input videos (720p, 1080p, 4K) are downscaled via FFmpeg before processing, preventing memory overflows.
-- **RLE compression** – Generated web bundles use Run-Length Encoding for minimal file size.
-- **Web playable** – Outputs a self-contained `demo.html` + `bundle.js` that plays the animation in any browser.
-- **Terminal preview** – Optionally plays the ASCII animation directly in your terminal.
-- **Color support** – Full 24-bit color by default, with post-conversion palettes.
-- **Input types** – Supports `.mp4`, `.gif`, and `.webm` inputs.
-- **Trim support** – Convert only a specific segment of a video (start/end time).
-- **Live tweaks** – Adjust foreground/background colors and re-generate outputs on demand.
-- **Foreground isolation** – Motion mask or ML segmentation with configurable background handling.
-- **Webcam capture** – Record from your webcam and convert the recording directly.
+## Architecture & Efficiency
+- **Stream-based processing** – FFmpeg pipes raw frames directly to Node.js; no temporary files are written to disk.
+- **Resolution-safe downscaling** – Input videos (ranging up to 4K natively) are downscaled heavily before processing preventing V8 memory overflows.
+- **Resource Constraints** – By bypassing external file writing and managing delta encoding internally, `ascii-fy` scales linearly and maintains a highly restricted memory footprint suitable for tiny shared VPS hosting.
+- **Binary payloads** – Output web bundles utilize raw binary serialization and GZIP compression for incredibly minimal file size (often 90% space reduction).
 
-## Installation
+## Quick Start
 
+Currently, `ascii-fy` is not distributed on the npm registry. You can install it directly from GitHub or by downloading the repository ZIP.
+
+### Local CLI & GUI Usage
+If you want to run the application to convert a video to ASCII natively on your machine:
 ```bash
+git clone https://github.com/iman-hussain/ASCII-fy.git
+cd ASCII-fy
 npm install
+
+# (Optional) Link it to use the "ascii-fy" command globally
+npm link
 ```
 
-> Requires Node.js >= 18 and **FFmpeg** (bundled via `ffmpeg-static`).
-
-## Usage
-
-ASCII-fy ships as both a GUI app (local web UI) and a CLI tool.
-
-### GUI
-
-Windows:
-
-```bat
-start.bat
+### Local Installation (Programmatic API)
+To use `ascii-fy` within your own Node.js projects, you can install it directly via the GitHub repository URL, or by pointing npm to a local folder:
+```bash
+npm install github:iman-hussain/ASCII-fy
+# OR
+npm install /path/to/extracted/ASCII-fy/folder
 ```
+> Requires Node.js >= 18. FFmpeg bindings are handled automatically via `ffmpeg-static`.
 
-macOS/Linux:
+---
+
+## 🖥️ CLI Usage
+
+If installed globally (or running locally via `npm start`), you can initiate `ascii-fy`.
 
 ```bash
-./start.sh
+# Interactive mode (Prompts you step-by-step for files and settings)
+ascii-fy
+
+# Fast-CLI mode (Bypasses prompts entirely for rapid executions or cronjobs)
+ascii-fy input/dog.mp4 --width 120 --fps 30 --mode truecolor
 ```
 
-If needed, make it executable:
+### Available CLI Flags
+| Flag                   | Description                                                                       | Default     |
+| ---------------------- | --------------------------------------------------------------------------------- | ----------- |
+| `<file>`               | The positional argument specifying the video path                                 | -           |
+| `-w, --width <n>`      | Output character width                                                            | 100         |
+| `-f, --fps <n>`        | Output playback frame rate                                                        | 24          |
+| `-m, --mode <mode>`    | Color styling (`truecolor`, `mono`, `palette`, `kmeans`)                          | `truecolor` |
+| `-d, --depth <n>`      | Palette color calculation density (2-64)                                          | 16          |
+| `-p, --palette <name>` | Preset selections (`realistic`, `grayscale`, `sunset`, `ocean`, `neon`, `forest`) | -           |
+| `--fg <hex>`           | Mono mode foreground color                                                        | `#00ff00`   |
+| `--bg <hex\|auto>`     | Mono mode and player background color                                             | `#000000`   |
+| `-g, --char-mode`      | Mode style (`ascii` edge detection or `block` solid colors)                       | `ascii`     |
+| `-s, --start <sec>`    | Video slice starting point (seconds)                                              | -           |
+| `-e, --end <sec>`      | Video slice ending point (seconds)                                                | -           |
+| `--no-gif`             | Skip GIF preview generation                                                       | -           |
+| `--no-open`            | Skip opening the browser/HTML automatically on completion                         | -           |
 
-```bash
-chmod +x start.sh
+---
+
+## 🌐 GUI Usage
+ASCII-fy ships with an integrated local Web UI enabling real-time tweaks via a graphical interface.
+
+1. Navigate to the installation directory.
+2. Windows: Run `start.bat`
+3. macOS/Linux: Run `./start.sh`
+
+The local server boots natively without external dependencies, spinning up a clean viewport. You can live-preview conversions, select foreground isolation (via ONNX ML segmentations), or capture conversions strictly from your WebCam stream.
+
+---
+
+## 🛠️ Programmatic API
+
+When importing `ascii-fy`, you receive access to the full video generation capabilities without side-effect generating loaders, as well as an inline Terminal Player for CLI dashboards.
+
+### 1. Generating Bundles
+The programmatic interface guarantees memory efficiency and throws standard JavaScript `Error` objects on failure.
+
+```js
+import { generateBundle } from 'ascii-fy';
+
+try {
+  const result = await generateBundle({
+    inputFile: 'input/my-video.webm', // Required
+    outDir: 'output',                 // Optional output directory
+    width: 80,                        // Options map directly to CLI flags
+    fps: 24,
+    mode: 'truecolor',
+    skipGif: true                     // Generate bundle.js ONLY
+  });
+
+  console.log('Bundle Saved To:', result.bundlePath);
+  console.log('Statistics:', result.stats);
+} catch (err) {
+  console.error("Conversion failed:", err.message);
+}
 ```
 
-### CLI
+### 2. Terminal Player Integration
+The programmatic interface exposes a native `TerminalPlayer` capable of parsing your compressed output payloads (`bundle.js`) directly in Node.js and accurately repainting ASCII frames inside the host terminal natively via precise truecolor ANSI sequence jumping (no terminal history bloat!).
 
-```bash
-node index.js
+```js
+import fs from 'node:fs/promises';
+import { TerminalPlayer } from 'ascii-fy';
+
+// Intercept your generated JS file from step 1
+const scriptContent = await fs.readFile('output/bundle.js', 'utf8');
+const match = scriptContent.match(/__ASCII_COMPRESSED__="([^"]+)"/);
+
+// Boot player logic
+const player = TerminalPlayer.fromCompressed(match[1]);
+
+// Yield controls to Node event loop (non-blocking)
+player.play();
+setTimeout(() => player.stop(), 5000); // Interrupts gracefully
 ```
 
-The interactive CLI will prompt you for:
 
-1. **Input file** – scans the `input/` folder for `.mp4`, `.mov`, `.webm`, etc.
-2. **Output width** – target character width (default: 100).
-3. **Trim (optional)** – start/end time in seconds to convert only part of the video.
-
-The terminal preview runs automatically after conversion. You can then choose render styles like:
-
-- Truecolor (source)
-- Monochrome (custom fg/bg)
-- Grayscale 4-bit / 6-bit / 8-bit
-- Gradient palettes (Sunset, Ocean, Neon, Forest) or a custom 3-color gradient
-
-The tool auto-creates `input/` and `output/` folders next to your video file if they do not already exist.
-After conversion, open the generated `demo.html` in a browser to view the animation.
-
-#### Foreground isolation
-
-In the GUI, enable **Foreground → Isolate subject** to separate the moving subject from a static background.
-
-- **Motion mask** – fast and lightweight (no ML).
-- **ML segmentation** – higher quality but requires a model file.
-
-Place your ONNX model at `models/selfie.onnx`. The ML option uses `onnxruntime-node`.
-
-The start scripts will auto-download a default selfie segmentation model if it is missing. You can override the download URL with `ASCII_FY_MODEL_URL`.
-
-#### Webcam capture
-
-Use **Use Webcam** in the GUI, then **Start Recording** / **Stop** to convert the recording.
-
-## Output
-
-Each conversion writes to `output/<video-name>/`:
-
-| File         | Description                                        |
-| ------------ | -------------------------------------------------- |
-| `bundle.js`  | RLE-compressed frame data + embedded `AsciiPlayer` |
-| `demo.html`  | Standalone HTML page with play/stop controls       |
-| `preview.gif`| ASCII GIF preview (generated from frames)          |
-
-## Architecture
-
-```mermaid
-flowchart TD
-  A[Video File] --> B[FFmpeg
-  scale + fps + rgb24]
-  B --> C[Converter Engine
-  ASCII chars + colors]
-  C --> D[Bundler
-  RLE + delta + gzip]
-  C --> E[GIF Writer
-  preview.gif]
-  D --> F[bundle.js + demo.html]
-```
-
-```text
-ascii-fy/
-├─ gui/
-│  ├─ index.html   - GUI layout, controls, preview, and client logic
-│  └─ server.js    - local HTTP server, API routes, and conversion runner
-├─ models/         - optional ML segmentation model (selfie.onnx)
-├─ lib/
-│  ├─ bundler.js   - bundle.js + demo.html generator (RLE + gzip)
-│  ├─ converter.js - FFmpeg stream reader and ASCII frame generator
-│  ├─ gif.js       - preview.gif renderer
-│  ├─ kmeans.js    - palette extraction (k-means)
-│  ├─ player.js    - browser player runtime
-│  ├─ preview.js   - terminal preview player
-│  ├─ render.js    - palettes, ramps, and color helpers
-│  └─ tone.js      - adaptive tone + sampling
-├─ input/          - source videos (optional)
-├─ output/         - conversion outputs per video
-├─ index.js        - CLI entry point
-├─ start.bat       - GUI launcher (Windows)
-└─ start.sh        - GUI launcher (macOS/Linux)
-```
-
-## License
-
-MIT
