@@ -177,6 +177,15 @@
 							<span class="range-value" id="fpsVal">24</span>
 						</div>
 					</div>
+					<!-- Detail -->
+					<div class="row" id="detailRow">
+						<label for="detail">Detail</label>
+						<div class="control">
+							<input type="range" id="detail" min="0" max="100" value="100"
+								step="1" />
+							<span class="range-value" id="detailVal">100</span>
+						</div>
+					</div>
 					<!-- Colour Mode -->
 					<div class="row">
 						<label for="mode">Colour Mode</label>
@@ -377,11 +386,6 @@
 							<label style="display:flex; align-items:center; gap:8px;">
 								<input type="checkbox" id="skipGif" />
 								<span>Skip GIF generation (faster processing)</span>
-							</label>
-							<label id="outlineOnlyRow"
-								style="display:flex; align-items:center; gap:8px;">
-								<input type="checkbox" id="outlineOnly" />
-								<span>Outline only (suppress fills)</span>
 							</label>
 						</div>
 					</div>

@@ -49,7 +49,7 @@ export async function startConvert() {
 			contrast: parseInt(dom.contrastSlider?.value) || 0
 		},
 		skipGif: dom.skipGif?.checked,
-		outlineOnly: dom.outlineOnly?.checked,
+		detail: parseInt(dom.detailSlider?.value ?? 100),
 	};
 
 	setState('lastConvertOptions', { mode, width: opts.width });

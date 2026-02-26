@@ -360,6 +360,7 @@ makeEditable(dom.depthValEl, dom.depthSlider);
 makeEditable(dom.fgThresholdVal, dom.fgThreshold);
 makeEditable(dom.brightVal, dom.brightSlider);
 makeEditable(dom.contrastVal, dom.contrastSlider);
+makeEditable(dom.detailVal, dom.detailSlider);
 makeEditable(dom.trimStartVal, dom.trimStartSlider, { step: 0.1 });
 makeEditable(dom.trimEndVal, dom.trimEndSlider, { step: 0.1 });
 
@@ -373,6 +374,7 @@ dom.fpsSlider.oninput = () => { dom.fpsVal.textContent = dom.fpsSlider.value; up
 dom.depthSlider.oninput = () => { dom.depthValEl.textContent = dom.depthSlider.value; updateEstimate(); };
 dom.brightSlider.oninput = () => { dom.brightVal.textContent = dom.brightSlider.value; updateVideoFilters(); };
 dom.contrastSlider.oninput = () => { dom.contrastVal.textContent = dom.contrastSlider.value; updateVideoFilters(); };
+dom.detailSlider.oninput = () => { dom.detailVal.textContent = dom.detailSlider.value; };
 dom.fgMode.onchange = updateForegroundFields;
 dom.fgThreshold.oninput = () => { dom.fgThresholdVal.textContent = dom.fgThreshold.value; };
 dom.fgInput.oninput = () => { dom.fgValEl.textContent = dom.fgInput.value; };

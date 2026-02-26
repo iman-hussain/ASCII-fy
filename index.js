@@ -110,7 +110,7 @@ function parseCliArgs(argv) {
 	const opts = {
 		inputFile: null, width: null, fps: null, mode: null, depth: null,
 		palette: null, fg: null, bg: null, start: null, end: null, charMode: null,
-		noGif: false, noOpen: false, outlineOnly: false, help: false,
+		noGif: false, noOpen: false, outlineOnly: false, detail: 100, help: false,
 	};
 
 	for (let i = 0; i < args.length; i++) {
@@ -132,7 +132,8 @@ function parseCliArgs(argv) {
 		else if (a === '--contrast') { opts.customContrast = parseInt(next()); }
 		else if (a === '--no-gif') { opts.noGif = true; }
 		else if (a === '--no-open') { opts.noOpen = true; }
-		else if (a === '--outline') { opts.outlineOnly = true; }
+		else if (a === '--outline') { opts.outlineOnly = true; opts.detail = 0; }
+		else if (a === '--detail') { opts.detail = Math.max(0, Math.min(100, Number(next()))); }
 		else if (!a.startsWith('-') && !opts.inputFile) {
 			opts.inputFile = a;
 		}
@@ -173,7 +174,8 @@ function printHelp() {
         --contrast <int>    Manual contrast override (-100 to 100)
         --no-gif            Skip GIF generation
         --no-open           Don't auto-open output files
-        --outline           Outline only (suppress solid fills, edge chars only)
+        --outline           Outline only (same as --detail 0)
+        --detail <0-100>    Detail level: 100=full fill, 0=edges only (default: 100)
     -h, --help              Show this help
 
   Examples:
@@ -276,6 +278,7 @@ async function runFromCLI(cli) {
 			start: cli.start ?? undefined,
 			end: cli.end ?? undefined,
 			charMode: cli.charMode === 'block' ? 'block' : 'ascii',
+			detail: cli.detail,
 			outlineOnly: cli.outlineOnly,
 			skipGif: cli.noGif
 		}, callbacks);
@@ -358,11 +361,18 @@ async function runInteractive() {
 			],
 		},
 		{
-			type: 'confirm',
-			name: 'outlineOnly',
-			message: 'Outline only (suppress solid fills, edge characters only)?',
-			default: false,
+			type: 'input',
+			name: 'detail',
+			message: 'Detail level (0=edges only, 100=full fill):',
+			default: 100,
 			when: (ans) => ans.charMode === 'ascii',
+			validate: (val) => {
+				const num = Number(val);
+				if (!Number.isFinite(num)) return 'Please enter a valid number.';
+				if (num < 0 || num > 100) return 'Value must be between 0 and 100.';
+				return true;
+			},
+			filter: (val) => Number(val),
 		},
 	]);
 
@@ -370,7 +380,7 @@ async function runInteractive() {
 	const outputWidth = answers.outputWidth;
 	const outputFps = answers.outputFps;
 	let charMode = answers.charMode || 'ascii';
-	let outlineOnly = answers.outlineOnly || false;
+	let detail = typeof answers.detail === 'number' ? answers.detail : 100;
 
 	let meta;
 	try {
@@ -456,7 +466,7 @@ async function runInteractive() {
 				start: startTime,
 				end: endTime,
 				charMode: charMode,
-				outlineOnly: outlineOnly,
+				detail: detail,
 				skipGif: false,
 				...renderOpts
 			}, callbacks);
@@ -501,8 +511,8 @@ async function runInteractive() {
 			charMode = charMode === 'block' ? 'ascii' : 'block';
 			console.log(`  Char mode set to: ${charMode}`);
 			if (charMode === 'ascii') {
-				const { outline } = await inquirer.prompt([{ type: 'confirm', name: 'outline', message: 'Enable outline only?', default: outlineOnly }]);
-				outlineOnly = outline;
+				const { detailVal } = await inquirer.prompt([{ type: 'input', name: 'detailVal', message: 'Detail level (0=edges only, 100=full fill):', default: detail, validate: v => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 100 ? true : '0-100'; }, filter: v => Number(v) }]);
+				detail = detailVal;
 			}
 			lastRun = await runConversion();
 		} else if (action === 'mono') {

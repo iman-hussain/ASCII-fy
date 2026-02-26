@@ -102,8 +102,9 @@ export const dom = {
 	charMode: $('#charMode'),
 	skipGif: $('#skipGif'),
 	paletteSelect: $('#palette'),
-	outlineOnly: $('#outlineOnly'),
-	outlineOnlyRow: $('#outlineOnlyRow'),
+	detailSlider: $('#detail'),
+	detailVal: $('#detailVal'),
+	detailRow: $('#detailRow'),
 	tabFramePreview: $('#tabFramePreview'),
 	framePreview: $('#framePreview'),
 };

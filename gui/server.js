@@ -86,14 +86,14 @@ function safeOutputName(inputPath) {
 	return basename(inputPath, extname(inputPath)).replace(/[<>:"/\\|?*]+/g, '_').trim() || 'output';
 }
 
-function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode, outlineOnly }) {
+function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode, detail }) {
 	const parts = [safeOutputName(inputPath), mode || 'truecolor'];
 	if ((mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') && depth) parts.push(`${depth}c`);
 	if (mode === 'palette' && palette) parts.push(palette);
 	if (width) parts.push(`${width}w`);
 	if (fps) parts.push(`${fps}fps`);
 	parts.push(charMode || 'ascii');
-	if (outlineOnly) parts.push('outline');
+	if (typeof detail === 'number' && detail < 100) parts.push(`d${detail}`);
 	return parts.join('_');
 }
 
@@ -171,7 +171,7 @@ async function runConversion(opts) {
 			playerBg = '',
 			start,
 			end,
-			outlineOnly = false,
+			detail = 100,
 			skipGif = false,
 			foreground: _fgRaw = null,
 		} = opts;
@@ -327,7 +327,7 @@ async function runConversion(opts) {
 			startTime: start, endTime: end, meta, targetFps: fps, tone, charMode,
 			collectFrames: false,
 			foreground,
-			outlineOnly,
+			detail,
 			crop: opts.crop || null,
 			signal: ac.signal,
 			onFrame: (idx, frame) => {
@@ -548,7 +548,8 @@ async function handler(req, res) {
 				const palette = opts.palette || 'realistic';
 				const charMode = opts.charMode || 'ascii';
 				const outlineOnly = !!opts.outlineOnly;
-				const midTime = opts.time != null ? opts.time
+			const detail = typeof opts.detail === 'number' ? opts.detail : (outlineOnly ? 0 : 100);
+			const midTime = opts.time != null ? opts.time
 					: (meta.duration ? meta.duration / 2 : 1);
 
 				/* Build render config (same logic as runConversion) */
@@ -595,8 +596,8 @@ async function handler(req, res) {
 					targetFps: 1,
 					tone,
 					charMode,
-					outlineOnly,
-					collectFrames: false,
+				detail,
+				collectFrames: false,
 					onFrame: (idx, frame) => {
 						if (!capturedFrame) capturedFrame = frame;
 					},

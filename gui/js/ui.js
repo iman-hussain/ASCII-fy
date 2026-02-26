@@ -98,10 +98,7 @@ export function updateModeFields() {
 }
 
 export function updateCharModeFields() {
-	const charMode = dom.charMode?.value || 'ascii';
-	if (dom.outlineOnlyRow) {
-		dom.outlineOnlyRow.classList.toggle('hidden', charMode !== 'ascii');
-	}
+	// Detail slider applies to both ascii and block modes — always visible
 }
 
 export function updateForegroundFields() {
