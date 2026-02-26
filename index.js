@@ -110,7 +110,7 @@ function parseCliArgs(argv) {
 	const opts = {
 		inputFile: null, width: null, fps: null, mode: null, depth: null,
 		palette: null, fg: null, bg: null, start: null, end: null, charMode: null,
-		noGif: false, noOpen: false, help: false,
+		noGif: false, noOpen: false, outlineOnly: false, help: false,
 	};
 
 	for (let i = 0; i < args.length; i++) {
@@ -132,6 +132,7 @@ function parseCliArgs(argv) {
 		else if (a === '--contrast') { opts.customContrast = parseInt(next()); }
 		else if (a === '--no-gif') { opts.noGif = true; }
 		else if (a === '--no-open') { opts.noOpen = true; }
+		else if (a === '--outline') { opts.outlineOnly = true; }
 		else if (!a.startsWith('-') && !opts.inputFile) {
 			opts.inputFile = a;
 		}
@@ -172,6 +173,7 @@ function printHelp() {
         --contrast <int>    Manual contrast override (-100 to 100)
         --no-gif            Skip GIF generation
         --no-open           Don't auto-open output files
+        --outline           Outline only (suppress solid fills, edge chars only)
     -h, --help              Show this help
 
   Examples:
@@ -274,6 +276,7 @@ async function runFromCLI(cli) {
 			start: cli.start ?? undefined,
 			end: cli.end ?? undefined,
 			charMode: cli.charMode === 'block' ? 'block' : 'ascii',
+			outlineOnly: cli.outlineOnly,
 			skipGif: cli.noGif
 		}, callbacks);
 
@@ -354,12 +357,20 @@ async function runInteractive() {
 				{ name: 'Block (█▓▒░ solid colour cells)', value: 'block' },
 			],
 		},
+		{
+			type: 'confirm',
+			name: 'outlineOnly',
+			message: 'Outline only (suppress solid fills, edge characters only)?',
+			default: false,
+			when: (ans) => ans.charMode === 'ascii',
+		},
 	]);
 
 	const inputPath = answers.customPath || answers.inputFile;
 	const outputWidth = answers.outputWidth;
 	const outputFps = answers.outputFps;
 	let charMode = answers.charMode || 'ascii';
+	let outlineOnly = answers.outlineOnly || false;
 
 	let meta;
 	try {
@@ -445,6 +456,7 @@ async function runInteractive() {
 				start: startTime,
 				end: endTime,
 				charMode: charMode,
+				outlineOnly: outlineOnly,
 				skipGif: false,
 				...renderOpts
 			}, callbacks);
@@ -486,9 +498,12 @@ async function runInteractive() {
 		if (action === 'truecolor') {
 			renderOpts = { mode: 'truecolor' };
 			lastRun = await runConversion();
-		} else if (action === 'toggle-char-mode') {
 			charMode = charMode === 'block' ? 'ascii' : 'block';
 			console.log(`  Char mode set to: ${charMode}`);
+			if (charMode === 'ascii') {
+				const { outline } = await inquirer.prompt([{ type: 'confirm', name: 'outline', message: 'Enable outline only?', default: outlineOnly }]);
+				outlineOnly = outline;
+			}
 			lastRun = await runConversion();
 		} else if (action === 'mono') {
 			const prevTheme = lastRun && lastRun.render && lastRun.render.theme ? lastRun.render.theme : {};

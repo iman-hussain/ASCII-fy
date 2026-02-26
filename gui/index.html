@@ -9,336 +9,438 @@
 </head>
 
 <body>
+	<div class="main-wrapper">
 
-	<div class="header">
-		<h1>ASCII<span>-fy</span></h1>
-		<p class="subtitle">Video → ASCII Art</p>
-	</div>
-
-	<div class="app">
-		<!-- ═══ Left column: Preview ═══════════════════════════════ -->
-		<div class="preview-col">
-			<div class="file-header hidden" id="fileHeader">
-				<span class="name" id="fileName"></span>
-				<button class="change-btn" id="changeFileBtn" type="button">Change</button>
-			</div>
-
-			<div class="preview-box" id="previewBox">
-				<div class="preview-tabs hidden" id="previewTabs">
-					<button class="preview-tab active" id="tabOriginal" type="button">Original<span
-							class="tab-size" id="tabOriginalSize"></span></button>
-					<button class="preview-tab" id="tabConvertedGif" type="button" disabled>GIF<span
-							class="tab-size" id="tabGifSize"></span></button>
-					<button class="preview-tab" id="tabConvertedBundle" type="button"
-						disabled>bundle.js<span class="tab-size"
-							id="tabBundleSize"></span></button>
-					<button class="preview-tab" id="tabFramePreview" type="button"
-						disabled>Frame</button>
-					<button class="undo-btn hidden" id="undoBtn" type="button" disabled
-						title="Revert to previous GIF">↩ Undo</button>
-				</div>
-				<div class="preview-content" id="previewContent">
-					<div class="drop-zone" id="dropZone">
-						<input type="file" id="fileInput"
-							accept=".mp4,.webm,.gif,.mov,.avi,.mkv,.flv" />
-						<div class="icon">🎬</div>
-						<div class="label">Drop a video here or click to browse</div>
-						<div class="label" style="margin-top:4px;font-size:.75rem">.mp4 .webm
-							.gif .mov .avi .mkv</div>
-						<div style="margin-top:12px; position:relative; z-index:2">
-							<select id="inputSelect"
-								style="max-width:260px;text-align:center">
-								<option value="">— or pick from input/ —</option>
-							</select>
-						</div>
-						<div style="margin-top:8px; font-size:.78rem; color:var(--muted)">— or —
-						</div>
-						<button class="btn btn-secondary" id="webcamBtn" type="button"
-							style="margin-top:6px; position:relative; z-index:2">📷 Use
-							Webcam</button>
-					</div>
-					<div id="previewVideoContainer" class="hidden"
-						style="position:relative; width:100%; display:flex; align-items:center; justify-content:center;">
-						<video class="preview-video" id="previewVideo" muted loop playsinline
-							controls style="max-width:100%; max-height:520px;"></video>
-						<div id="cropBox" class="hidden"
-							style="position:absolute; border: 2px dashed var(--accent); background: rgba(0, 232, 123, 0.15); cursor: move; touch-action: none; box-sizing: border-box; z-index:5;">
-							<div class="crop-handle" data-handle="nw"
-								style="top:-5px; left:-5px; cursor:nw-resize;"></div>
-							<div class="crop-handle" data-handle="ne"
-								style="top:-5px; right:-5px; cursor:ne-resize;"></div>
-							<div class="crop-handle" data-handle="sw"
-								style="bottom:-5px; left:-5px; cursor:sw-resize;"></div>
-							<div class="crop-handle" data-handle="se"
-								style="bottom:-5px; right:-5px; cursor:se-resize;">
-							</div>
-						</div>
-					</div>
-					<img class="preview-gif hidden" id="previewGif" alt="Converted output" />
-					<iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
-					<pre class="bundle-viewer hidden"
-						id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
-					<div class="frame-preview-box hidden" id="framePreview"></div>
-				</div>
-			</div>
-
-			<div class="preview-bg-bar hidden" id="previewBgBar">
-				<span>Preview Background:</span>
-				<button class="swatch-btn" data-bg="#000000" style="background:#000000"
-					title="Black"></button>
-				<button class="swatch-btn" data-bg="#ffffff" style="background:#ffffff"
-					title="White"></button>
-				<button class="swatch-btn" data-bg="#1a1a2e" style="background:#1a1a2e"
-					title="Dark blue"></button>
-				<button class="swatch-btn" data-bg="#808080" style="background:#808080"
-					title="Grey"></button>
-				<button class="swatch-btn checkerboard" data-bg="checkerboard"
-					title="Checkerboard"></button>
-				<input type="color" id="previewBgCustom" value="#000000" title="Custom colour" />
-				<label class="show-raw-js-box hidden" id="showRawJsBox">
-					<input type="checkbox" id="showRawJs" /> show raw .js
-				</label>
-			</div>
-
-			<div class="webcam-bar hidden" id="webcamBar">
-				<button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>●
-					Record</button>
-				<button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■
-					Stop</button>
-				<span class="status" id="recordStatus">Ready</span>
-			</div>
-
-			<div class="info-bar hidden" id="infoBar">
-				<div class="info-item"><span class="val" id="infoDims">—</span> resolution</div>
-				<div class="info-item"><span class="val" id="infoFps">—</span> fps</div>
-				<div class="info-item"><span class="val" id="infoFrames">—</span> frames</div>
-				<div class="info-item"><span class="val" id="infoSize">—</span></div>
-			</div>
-
-			<!-- Results (shown under converted preview) -->
-			<div class="results" id="resultsArea">
-				<div class="result-actions" id="resultActions"></div>
-			</div>
+		<div class="header">
+			<h1>ASCII<span>-fy</span></h1>
+			<p class="subtitle">Video → ASCII Art</p>
 		</div>
 
-		<!-- ═══ Right column: Controls ═════════════════════════════ -->
-		<div class="controls-col">
-			<div class="panel" id="controlsPanel">
-				<!-- Width -->
-				<div class="row">
-					<label for="width">Width</label>
-					<div class="control">
-						<input type="range" id="width" min="20" max="200" value="80" step="5" />
-						<span class="range-value" id="widthVal">80</span>
-					</div>
-				</div>
-				<!-- FPS -->
-				<div class="row">
-					<label for="fps">FPS</label>
-					<div class="control">
-						<input type="range" id="fps" min="6" max="60" value="24" step="1" />
-						<span class="range-value" id="fpsVal">24</span>
-					</div>
-				</div>
-				<!-- Colour mode -->
-				<div class="row">
-					<label for="mode">Colour mode</label>
-					<div class="control">
-						<select id="mode">
-							<option value="truecolor" selected>Truecolor</option>
-							<option value="palette">Palette</option>
-							<option value="kmeans">K-Means</option>
-							<option value="mono">Monochrome</option>
-							<option value="grayscale">Grayscale</option>
-						</select>
-					</div>
-				</div>
-				<!-- Palette preset -->
-				<div class="row" id="paletteRow">
-					<label for="palette">Palette</label>
-					<div class="control"
-						style="flex-direction:column; align-items:stretch; gap:4px">
-						<select id="palette">
-							<option value="realistic">Realistic</option>
-							<option value="grayscale">Grayscale</option>
-							<option value="sunset">Sunset</option>
-							<option value="ocean">Ocean</option>
-							<option value="neon">Neon</option>
-							<option value="forest">Forest</option>
-						</select>
-						<div class="palette-swatch-bar" id="paletteSwatch"></div>
-					</div>
-				</div>
-				<!-- Depth -->
-				<div class="row" id="depthRow">
-					<label for="depth">Colours</label>
-					<div class="control">
-						<input type="range" id="depth" min="2" max="64" value="16" step="1" />
-						<span class="range-value" id="depthVal">16</span>
-					</div>
-				</div>
-				<!-- Mono fg -->
-				<div class="row" id="monoFgRow">
-					<label>Foreground</label>
-					<div class="control">
-						<input type="color" id="fg" value="#00ff00" />
-						<span class="range-value" id="fgVal">#00ff00</span>
-					</div>
-				</div>
-				<!-- Mono bg -->
-				<div class="row" id="monoBgRow">
-					<label>Background</label>
-					<div class="control">
-						<input type="color" id="bg" value="#000000" />
-						<span class="range-value" id="bgVal">#000000</span>
-					</div>
-				</div>
-				<!-- Char mode -->
-				<div class="row">
-					<label for="charMode">Char mode</label>
-					<div class="control">
-						<select id="charMode">
-							<option value="ascii" selected>ASCII (edge-aware)</option>
-							<option value="block">Block (█▓▒░)</option>
-						</select>
-					</div>
+		<div class="app">
+			<!-- ═══ Left column: Preview ═══════════════════════════════ -->
+			<div class="preview-col">
+				<div class="file-header hidden" id="fileHeader">
+					<span class="name" id="fileName"></span>
+					<button class="change-btn" id="changeFileBtn" type="button">Change</button>
 				</div>
 
-				<!-- Trim -->
-				<div class="row">
-					<label>Trim</label>
-					<div class="control" style="flex-direction: column; gap: 6px;">
-						<div style="display:flex; width:100%; gap:8px;">
-							<input type="number" id="start" placeholder="Start(s)" min="0"
-								step="0.5" style="width:48%" />
-							<input type="number" id="end" placeholder="End(s)" min="0"
-								step="0.5" style="width:48%" />
-						</div>
-						<div class="dual-slider-wrapper"
-							style="position:relative; width:100%; height:24px; display:flex; align-items:center;">
+				<div class="preview-box" id="previewBox">
+					<div class="preview-tabs hidden" id="previewTabs">
+						<button class="preview-tab active" id="tabOriginal"
+							type="button">Original<span class="tab-size"
+								id="tabOriginalSize"></span></button>
+						<button class="preview-tab" id="tabConvertedGif" type="button"
+							disabled>GIF<span class="tab-size"
+								id="tabGifSize"></span></button>
+						<button class="preview-tab" id="tabConvertedBundle" type="button"
+							disabled>bundle.js<span class="tab-size"
+								id="tabBundleSize"></span></button>
+						<button class="preview-tab" id="tabFramePreview" type="button"
+							disabled>Frame</button>
+						<button class="undo-btn hidden" id="undoBtn" type="button" disabled
+							title="Revert to previous GIF">↩ Undo</button>
+					</div>
+					<div class="preview-content" id="previewContent">
+						<div class="drop-zone" id="dropZone">
+							<input type="file" id="fileInput"
+								accept=".mp4,.webm,.gif,.mov,.avi,.mkv,.flv" />
+							<div class="icon">🎬</div>
+							<div class="label">Drop a video here or click to browse</div>
+							<div class="label" style="margin-top:4px;font-size:.75rem">.mp4
+								.webm
+								.gif .mov .avi .mkv</div>
+							<div style="margin-top:12px; position:relative; z-index:2">
+								<select id="inputSelect"
+									style="max-width:260px;text-align:center">
+									<option value="">— or pick from input/ —
+									</option>
+								</select>
+							</div>
 							<div
-								style="position:absolute; width:100%; height:6px; background:var(--border); border-radius:3px;">
+								style="margin-top:8px; font-size:.78rem; color:var(--muted)">
+								— or —
 							</div>
-							<div id="trimFillRail"
-								style="position:absolute; height:6px; background:linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:3px; z-index:1;">
+							<button class="btn btn-secondary" id="webcamBtn" type="button"
+								style="margin-top:6px; position:relative; z-index:2">📷
+								Use
+								Webcam</button>
+						</div>
+						<div id="previewVideoContainer" class="hidden"
+							style="position:relative; width:100%; display:flex; align-items:center; justify-content:center;">
+							<video class="preview-video" id="previewVideo" muted loop
+								playsinline controls
+								style="max-width:100%; max-height:520px;"></video>
+							<div id="cropBox" class="hidden"
+								style="position:absolute; border: 2px dashed var(--accent); background: rgba(0, 232, 123, 0.15); cursor: move; touch-action: none; box-sizing: border-box; z-index:5;">
+								<div class="crop-handle" data-handle="nw"
+									style="top:-5px; left:-5px; cursor:nw-resize;">
+								</div>
+								<div class="crop-handle" data-handle="ne"
+									style="top:-5px; right:-5px; cursor:ne-resize;">
+								</div>
+								<div class="crop-handle" data-handle="sw"
+									style="bottom:-5px; left:-5px; cursor:sw-resize;">
+								</div>
+								<div class="crop-handle" data-handle="se"
+									style="bottom:-5px; right:-5px; cursor:se-resize;">
+								</div>
 							</div>
-							<input type="range" class="dual-slider" id="trimStartSlider"
-								min="0" max="100" value="0" step="0.1" />
-							<input type="range" class="dual-slider" id="trimEndSlider"
-								min="0" max="100" value="100" step="0.1" />
 						</div>
+						<img class="preview-gif hidden" id="previewGif"
+							alt="Converted output" />
+						<iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
+						<pre class="bundle-viewer hidden"
+							id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
+						<div class="frame-preview-box hidden" id="framePreview"></div>
 					</div>
 				</div>
-				<!-- Crop -->
-				<div class="row">
-					<label>Crop</label>
-					<div class="control" style="flex-wrap: wrap; gap: 4px;">
-						<div
-							style="width:100%; display:flex; justify-content:space-between; align-items:center;">
-							<button id="toggleCropBtn" class="btn btn-secondary"
-								style="padding: 3px 8px; font-size: 0.72rem; width:100%;">✂️
-								Toggle Crop Bounds</button>
-						</div>
-						<div style="display:none;">
-							<input type="number" id="cropW" placeholder="Width" min="0" />
-							<input type="number" id="cropH" placeholder="Height" min="0" />
-							<input type="number" id="cropX" placeholder="X" min="0" />
-							<input type="number" id="cropY" placeholder="Y" min="0" />
-						</div>
-					</div>
+
+				<div class="preview-bg-bar hidden" id="previewBgBar">
+					<span>Preview Background:</span>
+					<button class="swatch-btn" data-bg="#000000" style="background:#000000"
+						title="Black"></button>
+					<button class="swatch-btn" data-bg="#ffffff" style="background:#ffffff"
+						title="White"></button>
+					<button class="swatch-btn" data-bg="#1a1a2e" style="background:#1a1a2e"
+						title="Dark blue"></button>
+					<button class="swatch-btn" data-bg="#808080" style="background:#808080"
+						title="Grey"></button>
+					<button class="swatch-btn checkerboard" data-bg="checkerboard"
+						title="Checkerboard"></button>
+					<input type="color" id="previewBgCustom" value="#000000"
+						title="Custom colour" />
+					<label
+						style="display:flex; align-items:center; gap:6px; font-size:0.78rem; margin-left:8px; cursor:pointer; user-select:none;">
+						<input type="checkbox" id="livePreview" checked /> Live Preview
+					</label>
+					<label class="show-raw-js-box hidden" id="showRawJsBox">
+						<input type="checkbox" id="showRawJs" /> show raw .js
+					</label>
 				</div>
-				<!-- Options -->
-				<div class="row">
-					<label>Options</label>
-					<div class="control" style="flex-direction: column; gap: 8px;">
-						<label style="display:flex; align-items:center; gap:8px;">
-							<input type="checkbox" id="skipGif" />
-							<span>Skip GIF generation (faster processing)</span>
-						</label>
-					</div>
+
+				<div class="webcam-bar hidden" id="webcamBar">
+					<button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>●
+						Record</button>
+					<button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■
+						Stop</button>
+					<span class="status" id="recordStatus">Ready</span>
 				</div>
-				<!-- Brightness -->
-				<div class="row">
-					<label for="brightnessAdj">Brightness</label>
-					<div class="control">
-						<input type="range" id="brightnessAdj" min="-100" max="100" value="0" />
-						<span class="range-value" id="brightVal">0</span>
-					</div>
+
+				<div class="info-bar hidden" id="infoBar">
+					<div class="info-item"><span class="val" id="infoDims">—</span> resolution</div>
+					<div class="info-item"><span class="val" id="infoFps">—</span> fps</div>
+					<div class="info-item"><span class="val" id="infoFrames">—</span> frames</div>
+					<div class="info-item"><span class="val" id="infoSize">—</span></div>
 				</div>
-				<!-- Contrast -->
-				<div class="row">
-					<label for="contrastAdj">Contrast</label>
-					<div class="control">
-						<input type="range" id="contrastAdj" min="-100" max="100" value="0" />
-						<span class="range-value" id="contrastVal">0</span>
-					</div>
+
+				<!-- Results (shown under converted preview) -->
+				<div class="results" id="resultsArea">
+					<div class="result-actions" id="resultActions"></div>
 				</div>
-				<!-- Foreground separation -->
-				<div class="row">
-					<label>Foreground</label>
-					<div class="control"
-						style="flex-direction:column; align-items:flex-start; gap:8px">
-						<div class="checkbox-row">
-							<input type="checkbox" id="fgEnable" />
-							<span>Isolate subject</span>
-						</div>
-						<div class="control hidden" id="fgOptions"
-							style="gap:8px; width:100%; flex-wrap:wrap">
-							<select id="fgMode" style="min-width:140px">
-								<option value="motion" selected>Motion mask</option>
-								<option value="ml">ML segmentation</option>
-							</select>
-							<select id="fgBackground" style="min-width:160px">
-								<option value="transparent">Transparent background
-								</option>
-								<option value="solid" selected>Solid background</option>
-								<option value="keep">Freeze background</option>
-							</select>
-						</div>
-						<div class="control hidden" id="fgThresholdRow"
-							style="gap:8px; width:100%; align-items:center">
-							<span style="font-size:0.75rem;color:var(--muted);min-width:60px"
-								id="fgThresholdLabel">Sensitivity</span>
-							<input type="range" id="fgThreshold" min="5" max="80" value="20"
+			</div>
+
+			<!-- ═══ Right column: Controls ═════════════════════════════ -->
+			<div class="controls-col">
+				<div class="panel" id="controlsPanel">
+					<!-- Width -->
+					<div class="row">
+						<label for="width">Width</label>
+						<div class="control">
+							<input type="range" id="width" min="20" max="250" value="80"
 								step="1" />
-							<span class="range-value" id="fgThresholdVal">20</span>
+							<span class="range-value" id="widthVal">80</span>
 						</div>
-						<div class="control hidden" id="fgBgRow" style="gap:8px; width:100%">
-							<input type="color" id="fgBg" value="#000000" />
-							<span class="range-value" id="fgBgVal">#000000</span>
+					</div>
+					<!-- Height -->
+					<div class="row">
+						<label for="height">Height</label>
+						<div class="control">
+							<input type="range" id="height" min="10" max="250" value="60"
+								step="1" />
+							<span class="range-value" id="heightVal">60</span>
+						</div>
+					</div>
+					<!-- Aspect lock -->
+					<div class="row">
+						<label for="lockAspect">Lock Aspect Ratio</label>
+						<div class="control">
+							<input type="checkbox" id="lockAspect" checked
+								style="width:auto" />
+						</div>
+					</div>
+					<!-- FPS -->
+					<div class="row">
+						<label for="fps">FPS</label>
+						<div class="control">
+							<input type="range" id="fps" min="6" max="60" value="24"
+								step="1" />
+							<span class="range-value" id="fpsVal">24</span>
+						</div>
+					</div>
+					<!-- Colour Mode -->
+					<div class="row">
+						<label for="mode">Colour Mode</label>
+						<div class="control"
+							style="flex-direction: column; align-items: stretch; gap: 8px;">
+							<select id="mode">
+								<option value="truecolor" selected>Truecolor</option>
+								<option value="palette">Palette</option>
+								<option value="kmeans">K-Means</option>
+								<option value="mono">Monochrome</option>
+								<option value="grayscale">Grayscale</option>
+							</select>
+
+							<div id="colourSubOptions" class="hidden"
+								style="display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--border); padding-left: 12px; margin-left: 8px; margin-top: 4px;">
+								<div id="paletteRow"
+									style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+									<div
+										style="display: flex; align-items: center; gap: 8px; width: 100%;">
+										<span
+											style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Palette:</span>
+										<select id="palette" style="flex: 1;">
+											<option value="realistic">Realistic</option>
+											<option value="grayscale">Grayscale</option>
+											<option value="sunset">Sunset</option>
+											<option value="ocean">Ocean</option>
+											<option value="neon">Neon</option>
+											<option value="forest">Forest</option>
+										</select>
+									</div>
+									<div class="palette-swatch-bar" id="paletteSwatch"></div>
+								</div>
+								<div class="control" id="depthRow"
+									style="gap:8px; width:100%; align-items:center">
+									<span
+										style="font-size:0.8rem;color:var(--muted);min-width:80px">Colours:</span>
+									<input type="range" id="depth" min="2" max="64"
+										value="16" step="1" />
+									<span class="range-value" id="depthVal">16</span>
+								</div>
+								<div class="control hidden" id="monoFgRow"
+									style="gap:8px; width:100%">
+									<span
+										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Foreground:</span>
+									<input type="color" id="fg" value="#00ff00" />
+									<span class="range-value" id="fgVal">#00ff00</span>
+								</div>
+								<div class="control hidden" id="monoBgRow"
+									style="gap:8px; width:100%">
+									<span
+										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Background:</span>
+									<input type="color" id="bg" value="#000000" />
+									<span class="range-value" id="bgVal">#000000</span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- Char mode -->
+					<div class="row">
+						<label for="charMode">Char Mode</label>
+						<div class="control">
+							<select id="charMode">
+								<option value="ascii" selected>ASCII (edge-aware)
+								</option>
+								<option value="block">Block (█▓▒░)</option>
+							</select>
+						</div>
+					</div>
+					<!-- Brightness -->
+					<div class="row">
+						<label for="brightnessAdj">Brightness</label>
+						<div class="control">
+							<input type="range" id="brightnessAdj" min="-100" max="100" value="0" step="1" />
+							<span class="range-value" id="brightVal">0</span>
+						</div>
+					</div>
+					<!-- Contrast -->
+					<div class="row">
+						<label for="contrastAdj">Contrast</label>
+						<div class="control">
+							<input type="range" id="contrastAdj" min="-100" max="100" value="0" step="1" />
+							<span class="range-value" id="contrastVal">0</span>
+						</div>
+					</div>
+
+					<!-- Trim -->
+					<div class="row">
+						<label>Trim</label>
+						<div class="control" style="gap: 10px;">
+							<div
+								style="font-size: 0.8rem; color: var(--accent); font-weight: 600; min-width: 35px; text-align: right;">
+								<span id="trimStartVal" class="range-value">0.0</span>s
+							</div>
+							<div class="dual-slider-wrapper"
+								style="position:relative; flex: 1; height:24px; display:flex; align-items:center;">
+								<div
+									style="position:absolute; width:100%; height:6px; background:var(--border); border-radius:3px;">
+								</div>
+								<div id="trimFillRail"
+									style="position:absolute; height:6px; background:linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:3px; z-index:1;">
+								</div>
+								<input type="range" class="dual-slider"
+									id="trimStartSlider" min="0" max="100" value="0"
+									step="0.1" />
+								<input type="range" class="dual-slider"
+									id="trimEndSlider" min="0" max="100" value="100"
+									step="0.1" />
+							</div>
+							<div
+								style="font-size: 0.8rem; color: var(--accent); font-weight: 600; min-width: 35px;">
+								<span id="trimEndVal" class="range-value">0.0</span>s
+							</div>
+							<div style="display:none;">
+								<input type="number" id="start" placeholder="Start(s)"
+									min="0" step="0.5" />
+								<input type="number" id="end" placeholder="End(s)"
+									min="0" step="0.5" />
+							</div>
+						</div>
+					</div>
+					<!-- Crop -->
+					<div class="row">
+						<label>Crop</label>
+						<div class="control" style="flex-wrap: wrap; gap: 4px;">
+							<div
+								style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+								<button id="toggleCropBtn" class="btn btn-secondary"
+									style="padding: 3px 8px; font-size: 0.72rem; width:100%;">✂️
+									Toggle Crop Bounds</button>
+							</div>
+							<div style="display:none;">
+								<input type="number" id="cropW" placeholder="Width"
+									min="0" />
+								<input type="number" id="cropH" placeholder="Height"
+									min="0" />
+								<input type="number" id="cropX" placeholder="X"
+									min="0" />
+								<input type="number" id="cropY" placeholder="Y"
+									min="0" />
+							</div>
+						</div>
+					</div>
+					<!-- Subject Isolation -->
+					<div class="row" id="fgIsolationRow" style="margin-top: 8px;">
+						<label>Subject Isolation</label>
+						<div class="control"
+							style="flex-direction: column; align-items: stretch; gap: 8px;">
+							<select id="fgMode">
+								<option value="none">Off (No isolation)</option>
+								<option value="ml">ML Segmentation (Green-screen)
+								</option>
+								<option value="motion">Motion Mask (Moving objects)
+								</option>
+							</select>
+
+							<div id="fgSubOptions" class="hidden"
+								style="display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--border); padding-left: 12px; margin-left: 8px; margin-top: 4px;">
+								<div
+									style="display: flex; align-items: center; gap: 8px; width: 100%;">
+									<span
+										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Background:</span>
+									<select id="fgBackground" style="flex: 1;">
+										<option value="transparent" selected>
+											Transparent
+										</option>
+										<option value="solid">Solid color
+										</option>
+										<option value="keep">Freeze frame
+										</option>
+									</select>
+								</div>
+								<div class="control" id="fgThresholdRow"
+									style="gap:8px; width:100%; align-items:center">
+									<span style="font-size:0.8rem;color:var(--muted);min-width:80px"
+										id="fgThresholdLabel">Sensitivity</span>
+									<input type="range" id="fgThreshold" min="5"
+										max="80" value="20" step="1" />
+									<span class="range-value"
+										id="fgThresholdVal">20</span>
+								</div>
+								<div class="control" id="fgBgRow"
+									style="gap:8px; width:100%">
+									<span
+										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Color:</span>
+									<input type="color" id="fgBg" value="#000000" />
+									<span class="range-value"
+										id="fgBgVal">#000000</span>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Options -->
+					<div class="row">
+						<label>Options</label>
+						<div class="control"
+							style="flex-direction: column; gap: 8px; align-items: flex-start;">
+							<label style="display:flex; align-items:center; gap:8px;">
+								<input type="checkbox" id="skipGif" />
+								<span>Skip GIF generation (faster processing)</span>
+							</label>
+							<label id="outlineOnlyRow"
+								style="display:flex; align-items:center; gap:8px;">
+								<input type="checkbox" id="outlineOnly" />
+								<span>Outline only (suppress fills)</span>
+							</label>
 						</div>
 					</div>
 				</div>
-			</div>
 
-			<!-- Estimate -->
-			<div class="estimate hidden" id="estimateArea">
-				Estimated bundle: <span class="val" id="estimateVal">—</span>
-			</div>
-
-			<!-- Action buttons -->
-			<div style="display:flex; gap:8px">
-				<button class="btn btn-primary" id="convertBtn" disabled style="flex:1">▶
-					Convert</button>
-				<button class="btn btn-primary" id="stopBtn"
-					style="flex:1; display:none; background:var(--danger)">■ Stop</button>
-			</div>
-
-			<!-- Progress -->
-			<div class="progress-area" id="progressArea">
-				<div class="progress-bar-track">
-					<div class="progress-bar-fill" id="progressFill"></div>
+				<!-- Estimate -->
+				<div class="estimate hidden" id="estimateArea">
+					Estimated bundle: <span class="val" id="estimateVal">—</span>
 				</div>
-				<div class="progress-label" id="progressLabel">Starting…</div>
-			</div>
 
-			<!-- Log -->
-			<div class="log-area" id="logArea">
-				<div class="log-box" id="logBox"></div>
+				<!-- Action buttons -->
+				<div style="display:flex; gap:8px">
+					<button class="btn btn-primary" id="convertBtn" disabled style="flex:1">▶
+						Convert</button>
+					<button class="btn btn-primary" id="stopBtn"
+						style="flex:1; display:none; background:var(--danger)">■ Stop</button>
+				</div>
+
+				<!-- Progress -->
+				<div class="progress-area" id="progressArea">
+					<div class="progress-bar-track">
+						<div class="progress-bar-fill" id="progressFill"></div>
+					</div>
+					<div class="progress-label" id="progressLabel">Starting…</div>
+				</div>
+
+				<!-- Log -->
+				<div class="log-area" id="logArea">
+					<div class="log-box" id="logBox"></div>
+				</div>
 			</div>
+		</div>
+
+	</div><!-- /.main-wrapper -->
+	<div class="footer">
+		<div class="footer-links">
+			<a href="https://github.com/iman-hussain/ascii-fy" target="_blank" class="social-link">
+				<svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+					<path
+						d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+					</path>
+				</svg>
+				GitHub Repository
+			</a>
+			<span>Made by <a href="http://www.imanhussain.com" target="_blank">Iman
+					Hussain</a></span>
+			<a href="https://www.linkedin.com/in/iman-hussain" target="_blank" class="social-link">
+				<svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+					<path
+						d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H3.327v7.225h1.616zm-1.12-8.308c.563 0 1.026-.464 1.026-1.035 0-.57-.463-1.034-1.027-1.034-.564 0-1.027.464-1.027 1.034 0 .571.463 1.035 1.027 1.035zm10.74 8.308V10.15c0-1.78-.383-3.15-2.464-3.15-1.001 0-1.673.55-1.947 1.07h-.022V6.169H8.558v7.225h1.685v-2.693c0-.709.134-1.396.134-1.396.115-.285.45-.609.914-.609.61 0 .614.57.614 1.063v3.635h1.685z">
+					</path>
+				</svg>
+				LinkedIn
+			</a>
 		</div>
 	</div>
 
+
+	</div><!-- /.main-wrapper -->
 	<script type="module" src="/app.js"></script>
 </body>
 

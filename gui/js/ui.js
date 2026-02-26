@@ -9,13 +9,18 @@ export function estimateBundleBase({ w, h, frames, mode }) {
 	return Math.round(w * h * frames * bpc * 0.75 + 18000);
 }
 
+export function updateResolution() {
+	dom.widthVal.textContent = dom.widthSlider.value;
+	dom.heightVal.textContent = dom.heightSlider.value;
+	updateEstimate();
+}
+
 export function updateEstimate() {
 	if (!state.videoMeta) { dom.estimateArea.classList.add('hidden'); return; }
 	const w = parseInt(dom.widthSlider.value);
+	const h = parseInt(dom.heightSlider.value);
 	const fps = parseInt(dom.fpsSlider.value);
 	const mode = dom.modeSelect.value;
-	const aspect = (state.videoMeta.height || 480) / (state.videoMeta.width || 640);
-	const h = Math.round(w * aspect * 0.75);
 	const dur = state.videoMeta.duration || 10;
 	const trimS = parseFloat(dom.trimStartInp.value) || 0;
 	const trimE = parseFloat(dom.trimEndInp.value) || dur;
@@ -29,6 +34,7 @@ export function updateEstimate() {
 
 /* ── Editable slider values (click to type) ─────────── */
 export function makeEditable(spanEl, sliderEl, opts = {}) {
+	if (!spanEl || !sliderEl) return;
 	spanEl.addEventListener('click', () => {
 		if (spanEl.querySelector('input')) return;
 		const cur = sliderEl.value;
@@ -61,8 +67,14 @@ export function makeEditable(spanEl, sliderEl, opts = {}) {
 }
 
 export function updateVideoFilters() {
-	const brightness = parseInt(dom.brightSlider.value) || 0;
-	const contrast = parseInt(dom.contrastSlider.value) || 0;
+	const live = dom.livePreview?.checked ?? true;
+	if (!live) {
+		dom.previewVideo.style.filter = '';
+		dom.previewGif.style.filter = '';
+		return;
+	}
+	const brightness = parseInt(dom.brightSlider?.value) || 0;
+	const contrast = parseInt(dom.contrastSlider?.value) || 0;
 	// Map our -100 to 100 range logically into CSS 0 to 2 filter numbers, preserving 0 = 1.0 (neutral) natively mapped below:
 	const bCss = 1 + (brightness / 100);
 	const cCss = 1 + (contrast / 100);
@@ -73,18 +85,29 @@ export function updateVideoFilters() {
 
 export function updateModeFields() {
 	const m = dom.modeSelect.value;
+	dom.colourSubOptions.classList.toggle('hidden', m === 'truecolor');
 	dom.paletteRow.classList.toggle('hidden', m !== 'palette');
 	dom.depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans' && m !== 'grayscale');
 	dom.monoFgRow.classList.toggle('hidden', m !== 'mono');
 	dom.monoBgRow.classList.toggle('hidden', m !== 'mono');
 	if (m === 'palette') updatePaletteSwatches();
 	else dom.paletteSwatch.innerHTML = '';
+
+	// Outline only is only for ASCII mode
+	updateCharModeFields();
+}
+
+export function updateCharModeFields() {
+	const charMode = dom.charMode?.value || 'ascii';
+	if (dom.outlineOnlyRow) {
+		dom.outlineOnlyRow.classList.toggle('hidden', charMode !== 'ascii');
+	}
 }
 
 export function updateForegroundFields() {
-	const enabled = dom.fgEnable.checked;
 	const mode = dom.fgMode.value;
-	dom.fgOptions.classList.toggle('hidden', !enabled);
+	const enabled = mode !== 'none';
+	dom.fgSubOptions.classList.toggle('hidden', !enabled);
 	dom.fgThresholdRow.classList.toggle('hidden', !enabled);
 	const showBg = enabled && dom.fgBackground.value === 'solid';
 	dom.fgBgRow.classList.toggle('hidden', !showBg);
@@ -132,6 +155,42 @@ export function resetPreviewBg() {
 	dom.bundleIframe.style.background = '';
 	dom.previewBgBar.classList.add('hidden');
 	dom.showRawJsBox.classList.add('hidden');
+}
+export function showResults(d) {
+	dom.resultsArea.classList.add('active');
+	dom.resultActions.innerHTML = '';
+	if (d.htmlPath) addAction('Open Player', d.htmlPath);
+	if (d.gifPath) addAction('Open GIF', d.gifPath);
+	if (d.bundlePath) {
+		const btn = document.createElement('button');
+		btn.className = 'btn btn-secondary copy-btn';
+		btn.textContent = 'Copy Raw .js';
+		btn.onclick = async () => {
+			try {
+				const resp = await fetch(state.convertedBundleUrl + '?t=' + Date.now());
+				const text = await resp.text();
+				await copyToClipboard(text);
+				btn.textContent = 'Copied!';
+				setTimeout(() => btn.textContent = 'Copy Raw .js', 2000);
+			} catch (err) {
+				console.error('Copy failed', err);
+			}
+		};
+		dom.resultActions.appendChild(btn);
+	}
+	if (d.outputDir) addAction('Open Folder', d.outputDir);
+}
+
+async function copyToClipboard(text) {
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		return navigator.clipboard.writeText(text);
+	}
+	const t = document.createElement('textarea');
+	t.value = text;
+	document.body.appendChild(t);
+	t.select();
+	document.execCommand('copy');
+	document.body.removeChild(t);
 }
 export function showPreviewBgBar() {
 	dom.previewBgBar.classList.remove('hidden');

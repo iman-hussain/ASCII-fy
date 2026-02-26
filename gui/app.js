@@ -3,13 +3,13 @@ import { state, resetState, setState } from './js/state.js';
 import { formatBytes, appendLog } from './js/utils.js';
 import { startConvert, stopConversion } from './js/api.js';
 import {
-	updateEstimate, makeEditable, updateModeFields,
+	updateEstimate, updateResolution, makeEditable, updateModeFields,
 	updateForegroundFields, applyPreviewBg, resetPreviewBg,
 	showPreviewBgBar, updatePaletteSwatches, updateVideoFilters
 } from './js/ui.js';
 import {
 	toggleCrop, syncCropInputsToBox, syncTrimInputsToSliders,
-	syncTrimSlidersToInputs, onCropDrag, onCropDragEnd
+	syncTrimSlidersToInputs, onCropDrag, onCropDragEnd, getActiveCrop
 } from './js/crop-trim.js';
 
 /* ── Core File Initialization ────────────────────────────────────────── */
@@ -139,7 +139,6 @@ function resetFileSelection() {
 	resetSliderMaxes();
 	updateTabSizes();
 	dom.convertBtn.disabled = true;
-	dom.previewFrameBtn.disabled = true;
 	dom.inputSelect.value = '';
 	dom.previewVideo.src = '';
 	dom.tabOriginal.classList.add('active');
@@ -167,6 +166,14 @@ function clampSlidersToSource() {
 			dom.widthVal.textContent = maxW;
 		}
 	}
+	if (state.videoMeta.height) {
+		const maxH = state.videoMeta.height;
+		dom.heightSlider.max = maxH;
+		if (parseInt(dom.heightSlider.value) > maxH) {
+			dom.heightSlider.value = maxH;
+			dom.heightVal.textContent = maxH;
+		}
+	}
 	if (state.videoMeta.fps) {
 		const maxFps = Math.round(state.videoMeta.fps);
 		dom.fpsSlider.max = maxFps;
@@ -178,15 +185,43 @@ function clampSlidersToSource() {
 	if (state.videoMeta.duration) {
 		dom.trimStartSlider.max = state.videoMeta.duration;
 		dom.trimEndSlider.max = state.videoMeta.duration;
-		dom.trimEndSlider.value = state.videoMeta.duration;
-		dom.trimStartInp.value = 0;
 		dom.trimEndInp.value = state.videoMeta.duration;
 		syncTrimSlidersToInputs();
+		dom.trimStartVal.textContent = "0.0";
+		dom.trimEndVal.textContent = state.videoMeta.duration.toFixed(1);
 	}
+	// Init height based on width and aspect
+	syncResolution('width');
+}
+
+function syncResolution(changed) {
+	if (state.videoMeta) {
+		const isLocked = dom.lockAspectChk.checked;
+		const srcH = state.videoMeta.height || 480;
+		const srcW = (state.videoMeta.width || 640) * (state.videoMeta.sar || 1);
+
+		// If cropping is active, use the crop dimensions for the ratio
+		const activeCrop = getActiveCrop();
+		let ratio;
+		if (activeCrop) {
+			ratio = (activeCrop.h / activeCrop.w) * (6 / 8);
+		} else {
+			// Character aspect ratio: rows = cols * (srcH/srcW) * (CELL_W / CELL_H)
+			ratio = (srcH / srcW) * (6 / 8);
+		}
+
+		if (changed === 'width' && isLocked) {
+			dom.heightSlider.value = Math.max(1, Math.round(dom.widthSlider.value * ratio));
+		} else if (changed === 'height' && isLocked) {
+			dom.widthSlider.value = Math.max(1, Math.round(dom.heightSlider.value / ratio));
+		}
+	}
+	updateResolution();
 }
 
 function resetSliderMaxes() {
-	dom.widthSlider.max = 200;
+	dom.widthSlider.max = 250;
+	dom.heightSlider.max = 250;
 	dom.fpsSlider.max = 60;
 }
 
@@ -206,13 +241,15 @@ function updateInfoBar(tab) {
 		dom.previewGif.style.aspectRatio = '';
 	} else if (state.videoMeta) {
 		dom.infoBar.classList.remove('hidden');
-		if (state.videoMeta.width && state.videoMeta.height) dom.infoDims.textContent = state.videoMeta.width + '×' + state.videoMeta.height;
+		const sar = state.videoMeta.sar || 1;
+		const visW = Math.round(state.videoMeta.width * sar);
+		dom.infoDims.textContent = visW + '×' + state.videoMeta.height;
 		if (state.videoMeta.fps) dom.infoFps.textContent = state.videoMeta.fps.toFixed(1);
 		if (state.videoMeta.duration && state.videoMeta.fps) {
 			dom.infoFrames.textContent = Math.round(state.videoMeta.duration * state.videoMeta.fps).toLocaleString();
 		}
 		dom.infoSize.textContent = state.videoFileSize ? formatBytes(state.videoFileSize) : '—';
-		if (state.videoMeta.width && state.videoMeta.height) dom.previewVideo.style.aspectRatio = state.videoMeta.width + ' / ' + state.videoMeta.height;
+		if (state.videoMeta.width && state.videoMeta.height) dom.previewVideo.style.aspectRatio = visW + ' / ' + state.videoMeta.height;
 	} else {
 		return;
 	}
@@ -234,7 +271,33 @@ export function showResults(d) {
 	dom.resultActions.innerHTML = '';
 	if (d.htmlPath) addAction('Open Player', d.htmlPath);
 	if (d.gifPath) addAction('Open GIF', d.gifPath);
-	if (d.outputDir) addAction('Show Folder', d.outputDir);
+	if (d.bundleUrl) {
+		const copyBtn = document.createElement('button');
+		copyBtn.className = 'btn btn-secondary';
+		copyBtn.textContent = 'Copy .js';
+		copyBtn.onclick = async () => {
+			try {
+				const resp = await fetch(d.bundleUrl + '?t=' + Date.now());
+				const text = await resp.text();
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					await navigator.clipboard.writeText(text);
+				} else {
+					const ta = document.createElement('textarea');
+					ta.value = text;
+					document.body.appendChild(ta);
+					ta.select();
+					document.execCommand('copy');
+					document.body.removeChild(ta);
+				}
+				copyBtn.textContent = 'Copied!';
+				setTimeout(() => copyBtn.textContent = 'Copy .js', 2000);
+			} catch (err) {
+				console.error('Copy failed:', err);
+			}
+		};
+		dom.resultActions.appendChild(copyBtn);
+	}
+	if (d.outputDir) addAction('Open Folder', d.outputDir);
 }
 function addAction(label, path) {
 	const btn = document.createElement('button');
@@ -291,33 +354,42 @@ dom.changeFileBtn.addEventListener('click', resetFileSelection);
 
 // UI Editables & Sliders
 makeEditable(dom.widthVal, dom.widthSlider);
+makeEditable(dom.heightVal, dom.heightSlider);
 makeEditable(dom.fpsVal, dom.fpsSlider);
 makeEditable(dom.depthValEl, dom.depthSlider);
 makeEditable(dom.fgThresholdVal, dom.fgThreshold);
 makeEditable(dom.brightVal, dom.brightSlider);
 makeEditable(dom.contrastVal, dom.contrastSlider);
+makeEditable(dom.trimStartVal, dom.trimStartSlider, { step: 0.1 });
+makeEditable(dom.trimEndVal, dom.trimEndSlider, { step: 0.1 });
 
-dom.widthSlider.oninput = () => { dom.widthVal.textContent = dom.widthSlider.value; updateEstimate(); };
+dom.widthSlider.oninput = () => syncResolution('width');
+dom.heightSlider.oninput = () => syncResolution('height');
+dom.lockAspectChk.onchange = () => {
+	if (dom.lockAspectChk.checked) syncResolution('width');
+};
+
 dom.fpsSlider.oninput = () => { dom.fpsVal.textContent = dom.fpsSlider.value; updateEstimate(); };
 dom.depthSlider.oninput = () => { dom.depthValEl.textContent = dom.depthSlider.value; updateEstimate(); };
 dom.brightSlider.oninput = () => { dom.brightVal.textContent = dom.brightSlider.value; updateVideoFilters(); };
 dom.contrastSlider.oninput = () => { dom.contrastVal.textContent = dom.contrastSlider.value; updateVideoFilters(); };
+dom.fgMode.onchange = updateForegroundFields;
 dom.fgThreshold.oninput = () => { dom.fgThresholdVal.textContent = dom.fgThreshold.value; };
 dom.fgInput.oninput = () => { dom.fgValEl.textContent = dom.fgInput.value; };
 dom.bgInput.oninput = () => { dom.bgValEl.textContent = dom.bgInput.value; };
 dom.fgBgInput.oninput = () => { dom.fgBgVal.textContent = dom.fgBgInput.value; };
 
-dom.fgEnable.onchange = updateForegroundFields;
+dom.livePreview.onchange = updateVideoFilters;
 dom.fgBackground.onchange = updateForegroundFields;
-dom.fgMode.onchange = updateForegroundFields;
 
 dom.modeSelect.onchange = () => { updateModeFields(); updateEstimate(); };
+dom.charMode.onchange = () => { updateModeFields(); updateEstimate(); };
 
 // Trim bind
-dom.trimStartInp.addEventListener('input', () => { syncTrimInputsToSliders(); updateEstimate(); });
-dom.trimEndInp.addEventListener('input', () => { syncTrimInputsToSliders(); updateEstimate(); });
-dom.trimStartSlider.addEventListener('input', () => { syncTrimSlidersToInputs(); updateEstimate(); });
-dom.trimEndSlider.addEventListener('input', () => { syncTrimSlidersToInputs(); updateEstimate(); });
+dom.trimStartInp.addEventListener('input', () => { syncTrimInputsToSliders(); updateEstimate(); dom.trimStartVal.textContent = parseFloat(dom.trimStartSlider.value).toFixed(1); });
+dom.trimEndInp.addEventListener('input', () => { syncTrimInputsToSliders(); updateEstimate(); dom.trimEndVal.textContent = parseFloat(dom.trimEndSlider.value).toFixed(1); });
+dom.trimStartSlider.addEventListener('input', () => { syncTrimSlidersToInputs(); updateEstimate(); dom.trimStartVal.textContent = parseFloat(dom.trimStartSlider.value).toFixed(1); });
+dom.trimEndSlider.addEventListener('input', () => { syncTrimSlidersToInputs(); updateEstimate(); dom.trimEndVal.textContent = parseFloat(dom.trimEndSlider.value).toFixed(1); });
 
 // Crop binds
 dom.toggleCropBtn.addEventListener('click', toggleCrop);

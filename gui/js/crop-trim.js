@@ -164,6 +164,8 @@ export function syncTrimSlidersToInputs() {
 	}
 	dom.trimStartInp.value = s;
 	dom.trimEndInp.value = e;
+	if (dom.trimStartVal) dom.trimStartVal.textContent = s.toFixed(1);
+	if (dom.trimEndVal) dom.trimEndVal.textContent = e.toFixed(1);
 	updateTrimRail();
 }
 

@@ -33,6 +33,7 @@ export async function startConvert() {
 	const opts = {
 		inputPath: state.selectedPath,
 		width: parseInt(dom.widthSlider.value),
+		height: parseInt(dom.heightSlider.value),
 		fps: parseInt(dom.fpsSlider.value),
 		mode,
 		charMode: dom.charMode?.value || 'ascii',
@@ -44,10 +45,11 @@ export async function startConvert() {
 		start: parseFloat(dom.trimStartInp.value) || undefined,
 		end: parseFloat(dom.trimEndInp.value) || undefined,
 		customTone: {
-			brightness: parseInt(dom.brightSlider.value),
-			contrast: parseInt(dom.contrastSlider.value)
+			brightness: parseInt(dom.brightSlider?.value) || 0,
+			contrast: parseInt(dom.contrastSlider?.value) || 0
 		},
 		skipGif: dom.skipGif?.checked,
+		outlineOnly: dom.outlineOnly?.checked,
 	};
 
 	setState('lastConvertOptions', { mode, width: opts.width });
@@ -55,7 +57,7 @@ export async function startConvert() {
 	const activeCrop = getActiveCrop();
 	if (activeCrop) opts.crop = activeCrop;
 
-	if (dom.fgEnable.checked) {
+	if (dom.fgMode.value !== 'none') {
 		opts.foreground = {
 			mode: dom.fgMode.value,
 			background: dom.fgBackground.value,

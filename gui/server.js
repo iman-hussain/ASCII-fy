@@ -41,6 +41,11 @@ async function downloadMlModel(destPath) {
 	await mkdir(d(destPath), { recursive: true });
 
 	return new Promise((resolve) => {
+		const timeout = setTimeout(() => {
+			console.error('ML model download timed out.');
+			resolve(false);
+		}, 60000); // 1 minute timeout
+
 		const get = (url, redirects = 5) => {
 			const mod = url.startsWith('https') ? https : http;
 			mod.get(url, { headers: { 'User-Agent': 'ascii-fy' } }, (res) => {
@@ -48,13 +53,13 @@ async function downloadMlModel(destPath) {
 					res.resume();
 					return get(res.headers.location, redirects - 1);
 				}
-				if (res.statusCode !== 200) { res.resume(); return resolve(false); }
+				if (res.statusCode !== 200) { res.resume(); clearTimeout(timeout); return resolve(false); }
 				const ws = createWriteStream(destPath);
 				res.pipe(ws);
-				ws.on('finish', () => resolve(true));
-				ws.on('error', () => resolve(false));
-				res.on('error', () => resolve(false));
-			}).on('error', () => resolve(false));
+				ws.on('finish', () => { clearTimeout(timeout); resolve(true); });
+				ws.on('error', () => { clearTimeout(timeout); resolve(false); });
+				res.on('error', () => { clearTimeout(timeout); resolve(false); });
+			}).on('error', () => { clearTimeout(timeout); resolve(false); });
 		};
 		get(ML_MODEL_URL);
 	});
@@ -81,13 +86,14 @@ function safeOutputName(inputPath) {
 	return basename(inputPath, extname(inputPath)).replace(/[<>:"/\\|?*]+/g, '_').trim() || 'output';
 }
 
-function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode }) {
+function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode, outlineOnly }) {
 	const parts = [safeOutputName(inputPath), mode || 'truecolor'];
 	if ((mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') && depth) parts.push(`${depth}c`);
 	if (mode === 'palette' && palette) parts.push(palette);
 	if (width) parts.push(`${width}w`);
 	if (fps) parts.push(`${fps}fps`);
 	parts.push(charMode || 'ascii');
+	if (outlineOnly) parts.push('outline');
 	return parts.join('_');
 }
 
@@ -141,7 +147,11 @@ let converting = false;
 let currentAbort = null;   // AbortController for the active conversion
 
 async function runConversion(opts) {
-	if (converting) throw new Error('A conversion is already in progress.');
+	console.log('[server] runConversion started with opts:', JSON.stringify(opts));
+	if (converting) {
+		console.warn('[server] Conversion already in progress.');
+		throw new Error('A conversion is already in progress.');
+	}
 	converting = true;
 	const ac = new AbortController();
 	currentAbort = ac;
@@ -150,6 +160,7 @@ async function runConversion(opts) {
 		const {
 			inputPath,
 			width = 100,
+			height,
 			fps = 24,
 			mode = 'truecolor',
 			charMode = 'ascii',
@@ -160,15 +171,21 @@ async function runConversion(opts) {
 			playerBg = '',
 			start,
 			end,
+			outlineOnly = false,
 			skipGif = false,
 			foreground: _fgRaw = null,
 		} = opts;
 		let foreground = _fgRaw;
 
 		broadcast('log', { msg: 'Probing video…' });
+		console.log('[server] Probing video:', inputPath);
 		let meta;
 		try { meta = await probeVideo(inputPath); }
-		catch { meta = { fps: 24, width: 640, height: 480, duration: undefined }; }
+		catch (err) {
+			console.error('[server] Probe failed:', err.message);
+			meta = { fps: 24, width: 640, height: 480, duration: undefined };
+		}
+		console.log('[server] Video probe result:', JSON.stringify(meta));
 
 		const inputExt = extname(inputPath).toLowerCase();
 
@@ -176,10 +193,14 @@ async function runConversion(opts) {
 		let resolvedBg = '#000000';
 		if (playerBg === 'auto') {
 			try {
+				console.log('[server] Sampling video luminance for auto background...');
 				const bgStats = await sampleVideoLuminance(inputPath, width, meta);
 				resolvedBg = bgStats.mean > 0.6 ? '#f0f0f0' : bgStats.mean > 0.4 ? '#1a1a2e' : '#0a0a0a';
 				broadcast('log', { msg: `Auto background: ${resolvedBg}` });
-			} catch { /* keep default */ }
+				console.log('[server] Auto background detected:', resolvedBg);
+			} catch (err) {
+				console.error('[server] Auto background detection failed:', err.message);
+			}
 		} else if (playerBg && /^#[0-9a-fA-F]{6}$/.test(playerBg)) {
 			resolvedBg = playerBg;
 		}
@@ -204,6 +225,7 @@ async function runConversion(opts) {
 		} else if (mode === 'grayscale') {
 			const pal = makeGrayscalePalette(depth);
 			broadcast('log', { msg: 'Sampling video for adaptive tone…' });
+			console.log('[server] Sampling video for adaptive tone (grayscale)...');
 			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
 			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
 			tone.saturation = 0;
@@ -214,6 +236,7 @@ async function runConversion(opts) {
 		} else if (mode === 'palette') {
 			const pal = buildPresetPalette(palette, depth);
 			broadcast('log', { msg: 'Sampling video for adaptive tone…' });
+			console.log('[server] Sampling video for adaptive tone (palette)...');
 			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
 			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
 			render = {
@@ -222,7 +245,9 @@ async function runConversion(opts) {
 			};
 		} else if (mode === 'kmeans') {
 			broadcast('log', { msg: `Extracting ${depth}-colour palette via k-means…` });
+			console.log('[server] Extracting palette via k-means...');
 			const pal = await extractPaletteFromVideo(inputPath, width, meta, depth, opts.crop);
+			console.log('[server] Sampling video for adaptive tone (kmeans)...');
 			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
 			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
 			render = {
@@ -240,8 +265,21 @@ async function runConversion(opts) {
 				? { contrast: 1.35, brightness: 0.04, saturation: 1.2, gamma: 1.1 }
 				: { contrast: 1.15, brightness: 0.02, saturation: 1.05, gamma: 1.05 };
 
-			// Still apply custom tone overrides for truecolor adjustments
-			tone = adaptiveTone(256, null, inputExt, opts.customTone);
+			// Apply user brightness/contrast adjustments on top of base tone
+			if (opts.customTone) {
+				if (typeof opts.customTone.brightness === 'number') {
+					tone.brightness += opts.customTone.brightness / 100;
+				}
+				if (typeof opts.customTone.contrast === 'number') {
+					if (opts.customTone.contrast < 0) {
+						tone.contrast *= (100 + opts.customTone.contrast) / 100;
+					} else {
+						tone.contrast += (opts.customTone.contrast / 100) * 2;
+					}
+				}
+			}
+			tone.brightness = Math.max(-1.0, Math.min(1.0, tone.brightness));
+			tone.contrast = Math.max(-2.0, Math.min(100.0, tone.contrast));
 		}
 
 		if (foreground && render?.theme) {
@@ -285,10 +323,11 @@ async function runConversion(opts) {
 		let frameCount = 0;
 
 		const result = await convert({
-			inputPath, outputWidth: width, color: includeColors,
+			inputPath, outputWidth: width, outputHeight: height, color: includeColors,
 			startTime: start, endTime: end, meta, targetFps: fps, tone, charMode,
 			collectFrames: false,
 			foreground,
+			outlineOnly,
 			crop: opts.crop || null,
 			signal: ac.signal,
 			onFrame: (idx, frame) => {
@@ -299,6 +338,7 @@ async function runConversion(opts) {
 				});
 
 				if (!bundleWriter) {
+					// Use the first frame to determine the output height
 					const fh = Math.max(1, Math.round(frame.chars.length / width));
 					bundleWriter = createBundleWriter({
 						width, height: fh, fps: effectiveFps,
@@ -393,8 +433,12 @@ async function handler(req, res) {
 				'Connection': 'keep-alive',
 			});
 			res.write(':\n\n'); // ping
+			console.log('[server] New SSE client connected. Total clients:', sseClients.size + 1);
 			sseClients.add(res);
-			req.on('close', () => sseClients.delete(res));
+			req.on('close', () => {
+				sseClients.delete(res);
+				console.log('[server] SSE client disconnected. Remaining:', sseClients.size);
+			});
 			return;
 		}
 
@@ -448,7 +492,10 @@ async function handler(req, res) {
 				}
 				opts.inputPath = resolved;
 				// Fire-and-forget — progress comes over SSE
-				runConversion(opts).catch(() => { });
+				console.log('[server] Starting conversion in background...');
+				runConversion(opts).catch(err => {
+					console.error('[server] Background conversion error:', err);
+				});
 				json(res, { ok: true, started: true });
 			} catch (err) {
 				json(res, { ok: false, error: err.message });
@@ -500,6 +547,7 @@ async function handler(req, res) {
 				const depth = opts.depth || 16;
 				const palette = opts.palette || 'realistic';
 				const charMode = opts.charMode || 'ascii';
+				const outlineOnly = !!opts.outlineOnly;
 				const midTime = opts.time != null ? opts.time
 					: (meta.duration ? meta.duration / 2 : 1);
 
@@ -539,6 +587,7 @@ async function handler(req, res) {
 				await convert({
 					inputPath: resolved,
 					outputWidth: w,
+					outputHeight: opts.height, // Added outputHeight
 					color: mode !== 'mono',
 					startTime: midTime,
 					endTime: midTime + 0.1,
@@ -546,6 +595,7 @@ async function handler(req, res) {
 					targetFps: 1,
 					tone,
 					charMode,
+					outlineOnly,
 					collectFrames: false,
 					onFrame: (idx, frame) => {
 						if (!capturedFrame) capturedFrame = frame;
@@ -690,7 +740,8 @@ async function handler(req, res) {
 
 		if (url.pathname === '/app.js' || url.pathname.startsWith('/js/')) {
 			try {
-				const js = await readFile(join(__dirname, url.pathname), 'utf-8');
+				const relPath = url.pathname.replace(/^\/+/, '');
+				const js = await readFile(join(__dirname, relPath), 'utf-8');
 				res.writeHead(200, {
 					'Content-Type': 'application/javascript; charset=utf-8',
 					'Cache-Control': 'no-cache, no-store, must-revalidate'
