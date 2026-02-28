@@ -1,12 +1,32 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import fs from 'node:fs';
 import { generateBundle } from '../lib/api.js';
 
 async function runIntegrationTest() {
 	console.log('--- Corgi Integration Test ---');
 
-	const inputFile = 'input/corgi.webm';
+	const inputDir = 'input';
+	const inputFile = path.join(inputDir, 'corgi.webm');
 	const outputDir = 'output/integration-test';
+
+	// Download test file if running in CI or on a fresh clone
+	if (!fs.existsSync(inputFile)) {
+		console.log(`0. Test file not found at ${inputFile}, downloading fallback...`);
+		if (!fs.existsSync(inputDir)) fs.mkdirSync(inputDir, { recursive: true });
+
+		try {
+			// Download a tiny dummy mp4 from the tests directory (or a public URL if preferred)
+			const res = await fetch('https://raw.githubusercontent.com/mathiasbynens/small/master/cat.mp4');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const buffer = await res.arrayBuffer();
+			fs.writeFileSync(inputFile, Buffer.from(buffer));
+			console.log(`✅ Downloaded fallback test file.`);
+		} catch (e) {
+			console.warn(`[WARN] Skipping integration test. Could not download test file: ${e.message}`);
+			process.exit(0);
+		}
+	}
 
 	console.log(`1. Compressing ${inputFile}...`);
 	try {
