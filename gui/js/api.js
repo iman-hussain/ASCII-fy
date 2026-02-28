@@ -50,9 +50,16 @@ export async function startConvert() {
 		},
 		skipGif: dom.skipGif?.checked,
 		detail: parseInt(dom.detailSlider?.value ?? 100),
+		qStep: parseInt(dom.qStepSlider?.value ?? 24)
 	};
 
-	setState('lastConvertOptions', { mode, width: opts.width });
+	setState('lastConvertOptions', {
+		mode,
+		width: opts.width,
+		depth: opts.depth,
+		qStep: opts.qStep,
+		detail: opts.detail
+	});
 
 	const activeCrop = getActiveCrop();
 	if (activeCrop) opts.crop = activeCrop;
@@ -128,7 +135,8 @@ evtSource.addEventListener('done', async (e) => {
 		appendLog('Conversion complete!', 'success');
 
 		setState('lastConvertResult', d);
-		setState('convertedBundleUrl', d.htmlUrl || null);  // Load the HTML player, not raw .js
+		setState('convertedBundleUrl', d.htmlUrl || null);  // Load the HTML player in iframe
+		setState('convertedBundleJsUrl', d.bundleUrl || null); // Raw bundle.js for text viewer
 		setState('bundleTextCache', null);
 		dom.bundleIframe.src = 'about:blank';
 		dom.bundleIframe.removeAttribute('srcdoc');
@@ -159,6 +167,9 @@ evtSource.addEventListener('done', async (e) => {
 				h: d.height,
 				frames: d.totalFrames || d.frames,
 				mode: state.lastConvertOptions.mode,
+				depth: state.lastConvertOptions.depth,
+				qStep: state.lastConvertOptions.qStep,
+				detail: state.lastConvertOptions.detail
 			});
 			if (base > 0) {
 				const ratio = d.bundleSize / base;

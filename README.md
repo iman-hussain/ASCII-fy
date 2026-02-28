@@ -1,36 +1,41 @@
-# ascii-fy
+# ASCII-fi
 
-| Original (3.mb)                | ASCII Preview (0.3mb)    |
+| Original (3.0mb)               | ASCII Preview (0.3mb)    |
 | ------------------------------ | ------------------------ |
 | ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
 
-**ascii-fy** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint, making it incredibly suitable for constrained environments (e.g. 2 vCPUs, 4GB RAM) where it must safely coexist with other workloads. The architecture leverages Node.js streaming and native Run-Length Encoding to ensure memory efficiency and CPU bound scaling natively.
+**ASCII-fi** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint and is optimized for both visual fidelity and storage efficiency. With support for real-time bundle size estimation, automatic vertical video orientation, and high-precision color quantization, ASCII-fi transforms any video into stunning, portable ASCII animations for the web or terminal.
 
 It operates seamlessly as a **Standalone Interactive CLI/GUI** and as a **Programmatic NPM Library**, allowing for flexible standalone consumption or direct integrations inside your backend environments.
 
 ## Architecture & Efficiency
+
 - **Stream-based processing** – FFmpeg pipes raw frames directly to Node.js; no temporary files are written to disk.
 - **Resolution-safe downscaling** – Input videos (ranging up to 4K natively) are downscaled heavily before processing preventing V8 memory overflows.
-- **Resource Constraints** – By bypassing external file writing and managing delta encoding internally, `ascii-fy` scales linearly and maintains a highly restricted memory footprint suitable for tiny shared VPS hosting.
+- **Resource Constraints** – By bypassing external file writing and managing delta encoding internally, `ASCII-fi` scales linearly and maintains a highly restricted memory footprint suitable for tiny shared VPS hosting.
 - **Binary payloads** – Output web bundles utilize raw binary serialization and GZIP compression for incredibly minimal file size (often 90% space reduction).
 
 ## Quick Start
 
-Currently, `ascii-fy` is not distributed on the npm registry. You can install it directly from GitHub or by downloading the repository ZIP.
+Currently, `ASCII-fi` is not distributed on the npm registry. You can install it directly from GitHub or by downloading the repository ZIP.
 
 ### Local CLI & GUI Usage
+
 If you want to run the application to convert a video to ASCII natively on your machine:
+
 ```bash
 git clone https://github.com/iman-hussain/ASCII-fy.git
 cd ASCII-fy
 npm install
 
-# (Optional) Link it to use the "ascii-fy" command globally
+# (Optional) Link it to use the "ASCII-fi" command globally
 npm link
 ```
 
 ### Local Installation (Programmatic API)
-To use `ascii-fy` within your own Node.js projects, you can install it directly via the GitHub repository URL, or by pointing npm to a local folder:
+
+To use `ASCII-fi` within your own Node.js projects, you can install it directly via the GitHub repository URL, or by pointing npm to a local folder:
+
 ```bash
 npm install github:iman-hussain/ASCII-fy
 # OR
@@ -38,7 +43,7 @@ npm install /path/to/extracted/ASCII-fy/folder
 > Requires Node.js >= 18. FFmpeg bindings are handled automatically via `ffmpeg-static`.
 
 > [!TIP]
-> **Permission Issues?** If you are running `ascii-fy` on Linux or via Docker and encounter `EACCES` permission errors when generating animations, ensure your user owns the project root so Node can generate the `output` folder:
+> **Permission Issues?** If you are running `ASCII-fi` on Linux or via Docker and encounter `EACCES` permission errors when generating animations, ensure your user owns the project root so Node can generate the `output` folder:
 > ```bash
 > sudo chown -R $USER output
 > ```
@@ -47,17 +52,30 @@ npm install /path/to/extracted/ASCII-fy/folder
 
 ## 🖥️ CLI Usage
 
-If installed globally (or running locally via `npm start`), you can initiate `ascii-fy`.
+If installed globally (or running locally via `npm start`), you can initiate `ASCII-fi`.
 
 ```bash
 # Interactive mode (Prompts you step-by-step for files and settings)
-ascii-fy
+ASCII-fi
 
 # Fast-CLI mode (Bypasses prompts entirely for rapid executions or cronjobs)
-ascii-fy input/dog.mp4 --width 120 --fps 30 --mode truecolor
+ASCII-fi input/dog.mp4 --width 120 --fps 30 --mode truecolor
 ```
 
+### 🎮 Terminal Playback
+
+Once you have generated an animation (typically saved as `bundle.js`), you can play it natively in your terminal using the standalone `ascii-player.js` utility.
+
+```bash
+# Play a bundle in your terminal
+node scripts/ascii-player.js output/dog/bundle.js
+```
+
+> [!NOTE]
+> **Performance:** For the best experience (smooth 60fps truecolor), we recommend using the modern **Windows Terminal** or a terminal with full GPU acceleration. Choose a small width (e.g., 60-80 columns) for optimal performance.
+
 ### Available CLI Flags
+
 | Flag                   | Description                                                                       | Default     |
 | ---------------------- | --------------------------------------------------------------------------------- | ----------- |
 | `<file>`               | The positional argument specifying the video path                                 | -           |
@@ -77,7 +95,8 @@ ascii-fy input/dog.mp4 --width 120 --fps 30 --mode truecolor
 ---
 
 ## 🌐 GUI Usage
-ASCII-fy ships with an integrated local Web UI enabling real-time tweaks via a graphical interface.
+
+ASCII-fi ships with an integrated local Web UI enabling real-time tweaks via a graphical interface.
 
 1. Navigate to the installation directory.
 2. Windows: Run `start.bat`
@@ -89,13 +108,14 @@ The local server boots natively without external dependencies, spinning up a cle
 
 ## 🛠️ Programmatic API
 
-When importing `ascii-fy`, you receive access to the full video generation capabilities without side-effect generating loaders, as well as an inline Terminal Player for CLI dashboards.
+When importing `ascii-fi`, you receive access to the full video generation capabilities without side-effect generating loaders, as well as an inline Terminal Player for CLI dashboards.
 
 ### 1. Generating Bundles
+
 The programmatic interface guarantees memory efficiency and throws standard JavaScript `Error` objects on failure.
 
 ```js
-import { generateBundle } from 'ascii-fy';
+import { generateBundle } from 'ascii-fi';
 
 try {
   const result = await generateBundle({
@@ -115,11 +135,12 @@ try {
 ```
 
 ### 2. Terminal Player Integration
+
 The programmatic interface exposes a native `TerminalPlayer` capable of parsing your compressed output payloads (`bundle.js`) directly in Node.js and accurately repainting ASCII frames inside the host terminal natively via precise truecolor ANSI sequence jumping (no terminal history bloat!).
 
 ```js
 import fs from 'node:fs/promises';
-import { TerminalPlayer } from 'ascii-fy';
+import { TerminalPlayer } from 'ascii-fi';
 
 // Intercept your generated JS file from step 1
 const scriptContent = await fs.readFile('output/bundle.js', 'utf8');
@@ -133,4 +154,6 @@ player.play();
 setTimeout(() => player.stop(), 5000); // Interrupts gracefully
 ```
 
+### 3. Standalone Terminal Player
 
+The `scripts/ascii-player.js` script in the root is a standalone, zero-dependency utility that can be shared and used to play any `bundle.js` file generated by `ASCII-fi`. This is ideal for CI/CD environments or sharing animations without requiring the full library.

@@ -332,10 +332,13 @@ body {
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
-	padding: 10px 14px;
+	padding: 8px 14px;
 	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 16px;
+	flex-wrap: nowrap;
+	gap: 6px 12px;
+	align-items: center;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .info-item {
@@ -374,8 +377,9 @@ body {
 .row label {
 	font-size: 0.82rem;
 	color: var(--muted);
-	min-width: 90px;
+	min-width: 120px;
 	flex-shrink: 0;
+	white-space: normal;
 }
 
 .control {
@@ -786,16 +790,128 @@ input[type="checkbox"] {
 .show-raw-js-box {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
 	margin-left: auto;
-	font-size: .78rem;
-	color: var(--fg);
-	cursor: pointer;
 	user-select: none;
 }
 
-.show-raw-js-box input {
+/* ── Live Preview / Raw .js word-toggle ─────────────────── */
+.raw-js-toggle {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: 20px;
+	padding: 4px 4px;
 	cursor: pointer;
+	gap: 0;
+	font-size: 0.85rem;
+	font-family: inherit;
+	outline: none;
+	transition: border-color .2s;
+}
+
+.raw-js-toggle:hover {
+	border-color: var(--accent);
+}
+
+/* sliding highlight pill */
+.raw-js-knob {
+	position: absolute;
+	top: 3px;
+	bottom: 3px;
+	left: 4px;
+	width: calc(50% - 4px);
+	background: var(--accent);
+	border-radius: 16px;
+	transition: transform .22s cubic-bezier(.4, 0, .2, 1), width .22s;
+	z-index: 0;
+}
+
+/* labels sit above the knob */
+.raw-js-label-left,
+.raw-js-label-right {
+	position: relative;
+	z-index: 1;
+	padding: 3px 14px;
+	border-radius: 16px;
+	transition: color .2s;
+	white-space: nowrap;
+}
+
+/* left = active by default */
+.raw-js-label-left {
+	color: #0e0e16;
+	font-weight: 600;
+}
+
+.raw-js-label-right {
+	color: var(--muted);
+}
+
+/* when active (Raw .js) slide knob right and swap colours */
+.raw-js-toggle[aria-pressed="true"] .raw-js-knob {
+	transform: translateX(100%);
+}
+
+.raw-js-toggle[aria-pressed="true"] .raw-js-label-left {
+	color: var(--muted);
+}
+
+.raw-js-toggle[aria-pressed="true"] .raw-js-label-right {
+	color: #0e0e16;
+	font-weight: 600;
+}
+
+.switch {
+	position: relative;
+	display: inline-block;
+	width: 34px;
+	height: 18px;
+}
+
+.switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: var(--border);
+	transition: .2s;
+}
+
+.slider:before {
+	position: absolute;
+	content: "";
+	height: 14px;
+	width: 14px;
+	left: 2px;
+	bottom: 2px;
+	background-color: var(--fg);
+	transition: .2s;
+}
+
+input:checked+.slider {
+	background-color: var(--accent);
+}
+
+input:checked+.slider:before {
+	transform: translateX(16px);
+}
+
+.slider.round {
+	border-radius: 18px;
+}
+
+.slider.round:before {
+	border-radius: 50%;
 }
 
 #fgSubOptions {

@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { generateBundle, TerminalPlayer } from './lib/api.js';
+import { generateBundle, TerminalPlayer } from '../lib/api.js';
 
 async function main() {
 	console.log('Testing programmatic API and TerminalPlayer...');

@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>ASCII-fy</title>
+	<title>ASCII-fi</title>
 	<link rel="stylesheet" href="/style.css">
 </head>
 
@@ -12,8 +12,7 @@
 	<div class="main-wrapper">
 
 		<div class="header">
-			<h1>ASCII<span>-fy</span></h1>
-			<p class="subtitle">Video → ASCII Art</p>
+			<h1>ASCII<span>-fi</span></h1>
 		</div>
 
 		<div class="app">
@@ -30,13 +29,11 @@
 							type="button">Original<span class="tab-size"
 								id="tabOriginalSize"></span></button>
 						<button class="preview-tab" id="tabConvertedGif" type="button"
-							disabled>GIF<span class="tab-size"
+							disabled>preview.gif<span class="tab-size"
 								id="tabGifSize"></span></button>
 						<button class="preview-tab" id="tabConvertedBundle" type="button"
 							disabled>bundle.js<span class="tab-size"
 								id="tabBundleSize"></span></button>
-						<button class="preview-tab" id="tabFramePreview" type="button"
-							disabled>Frame</button>
 						<button class="undo-btn hidden" id="undoBtn" type="button" disabled
 							title="Revert to previous GIF">↩ Undo</button>
 					</div>
@@ -91,7 +88,8 @@
 						<iframe class="bundle-iframe hidden" id="bundleIframe"></iframe>
 						<pre class="bundle-viewer hidden"
 							id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
-						<div class="frame-preview-box hidden" id="framePreview"></div>
+						<pre class="bundle-viewer hidden"
+							id="bundleViewer"><span class="bundle-viewer-empty">No bundle yet.</span></pre>
 					</div>
 				</div>
 
@@ -109,26 +107,37 @@
 						title="Checkerboard"></button>
 					<input type="color" id="previewBgCustom" value="#000000"
 						title="Custom colour" />
-					<label
-						style="display:flex; align-items:center; gap:6px; font-size:0.78rem; margin-left:8px; cursor:pointer; user-select:none;">
-						<input type="checkbox" id="livePreview" checked /> Live Preview
-					</label>
-					<label class="show-raw-js-box hidden" id="showRawJsBox">
-						<input type="checkbox" id="showRawJs" /> show raw .js
+
+					<label class="show-raw-js-box hidden" id="showRawJsBox"
+						style="display:flex; align-items:center; gap:0; margin-left:auto; margin-right:8px;">
+						<button type="button" id="rawJsToggle" class="raw-js-toggle"
+							aria-pressed="false">
+							<span class="raw-js-knob"></span>
+							<span class="raw-js-label-left">Live Preview</span>
+							<span class="raw-js-label-right">Raw .js</span>
+						</button>
+						<!-- hidden checkbox kept for backward compat with JS listeners -->
+						<input type="checkbox" id="showRawJs" style="display:none" />
 					</label>
 				</div>
 
 				<div class="webcam-bar hidden" id="webcamBar">
 					<button class="btn btn-secondary" id="recordStartBtn" type="button" disabled>●
 						Record</button>
-					<button class="btn btn-secondary" id="recordStopBtn" type="button" disabled>■
-						Stop</button>
-					<span class="status" id="recordStatus">Ready</span>
+					<button class="btn btn-secondary" id="recordPauseBtn" type="button" disabled
+						style="display:none">⏸ Pause</button>
+					<button class="btn btn-secondary" id="recordStopBtn" type="button" disabled
+						style="display:none">■ Stop</button>
+					<span class="status" id="recordStatus">Ready — click Record to start</span>
+					<span class="record-timer" id="recordTimer"
+						style="display:none; margin-left:auto; font-size:0.82rem; color:var(--accent); font-weight:600; font-variant-numeric:tabular-nums">0:00</span>
 				</div>
 
 				<div class="info-bar hidden" id="infoBar">
 					<div class="info-item"><span class="val" id="infoDims">—</span> resolution</div>
 					<div class="info-item"><span class="val" id="infoFps">—</span> fps</div>
+					<div class="info-item"><span class="val" id="infoDuration">—</span> duration
+					</div>
 					<div class="info-item"><span class="val" id="infoFrames">—</span> frames</div>
 					<div class="info-item"><span class="val" id="infoSize">—</span></div>
 				</div>
@@ -142,8 +151,8 @@
 			<!-- ═══ Right column: Controls ═════════════════════════════ -->
 			<div class="controls-col">
 				<div class="panel" id="controlsPanel">
-					<!-- Width -->
-					<div class="row">
+					<div class="row"
+						title="Total horizontal characters. Higher → sharper detail but larger file size.">
 						<label for="width">Width</label>
 						<div class="control">
 							<input type="range" id="width" min="20" max="250" value="80"
@@ -152,7 +161,8 @@
 						</div>
 					</div>
 					<!-- Height -->
-					<div class="row">
+					<div class="row"
+						title="Total vertical characters. Higher → sharper detail but larger file size.">
 						<label for="height">Height</label>
 						<div class="control">
 							<input type="range" id="height" min="10" max="250" value="60"
@@ -161,7 +171,8 @@
 						</div>
 					</div>
 					<!-- Aspect lock -->
-					<div class="row">
+					<div class="row"
+						title="Locks width/height ratio to match the video source dimensions.">
 						<label for="lockAspect">Lock Aspect Ratio</label>
 						<div class="control">
 							<input type="checkbox" id="lockAspect" checked
@@ -169,7 +180,8 @@
 						</div>
 					</div>
 					<!-- FPS -->
-					<div class="row">
+					<div class="row"
+						title="Frames per second. Higher → smoother motion but significantly larger file size.">
 						<label for="fps">FPS</label>
 						<div class="control">
 							<input type="range" id="fps" min="6" max="60" value="24"
@@ -178,7 +190,8 @@
 						</div>
 					</div>
 					<!-- Detail -->
-					<div class="row" id="detailRow">
+					<div class="row" id="detailRow"
+						title="Edge detection sensitivity. Higher → captures finer textures and outlines; Lower → smoother, more abstract look.">
 						<label for="detail">Detail</label>
 						<div class="control">
 							<input type="range" id="detail" min="0" max="100" value="100"
@@ -186,93 +199,128 @@
 							<span class="range-value" id="detailVal">100</span>
 						</div>
 					</div>
-					<!-- Colour Mode -->
-					<div class="row">
+					<div class="row"
+						title="Rendering method: Truecolour (high quality), Palette (fixed), K-Means (optimised), Greyscale, or Monochrome.">
 						<label for="mode">Colour Mode</label>
 						<div class="control"
 							style="flex-direction: column; align-items: stretch; gap: 8px;">
 							<select id="mode">
-								<option value="truecolor" selected>Truecolor</option>
+								<option value="truecolor" selected
+									title="High-fidelity 24-bit ANSI colour.">
+									Truecolour</option>
 								<option value="palette">Palette</option>
 								<option value="kmeans">K-Means</option>
 								<option value="mono">Monochrome</option>
-								<option value="grayscale">Grayscale</option>
+								<option value="grayscale"
+									title="Luminance-based shades of grey.">
+									Greyscale</option>
 							</select>
 
 							<div id="colourSubOptions" class="hidden"
 								style="display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--border); padding-left: 12px; margin-left: 8px; margin-top: 4px;">
+								<div id="qStepRow" class="control hidden"
+									style="gap:8px; width:100%; align-items:center"
+									title="Colour reduction level. Higher → fewer unique colours used, resulting in smaller files.">
+									<span
+										style="font-size:0.8rem;color:var(--muted);min-width:108px">Quantise:</span>
+									<input type="range" id="qStep" min="1" max="128"
+										value="24" step="1" />
+									<span class="range-value"
+										id="qStepVal">24</span>
+								</div>
 								<div id="paletteRow"
-									style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+									style="display: flex; flex-direction: column; gap: 4px; width: 100%;"
+									title="Predefined colour sets for stylised output.">
 									<div
 										style="display: flex; align-items: center; gap: 8px; width: 100%;">
 										<span
-											style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Palette:</span>
+											style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Palette:</span>
 										<select id="palette" style="flex: 1;">
-											<option value="realistic">Realistic</option>
-											<option value="grayscale">Grayscale</option>
-											<option value="sunset">Sunset</option>
-											<option value="ocean">Ocean</option>
-											<option value="neon">Neon</option>
-											<option value="forest">Forest</option>
+											<option value="realistic">
+												Realistic</option>
+											<option value="grayscale">
+												Greyscale</option>
+											<option value="sunset">Sunset
+											</option>
+											<option value="ocean">Ocean
+											</option>
+											<option value="neon">Neon
+											</option>
+											<option value="forest">Forest
+											</option>
 										</select>
 									</div>
-									<div class="palette-swatch-bar" id="paletteSwatch"></div>
+									<div class="palette-swatch-bar"
+										id="paletteSwatch"></div>
 								</div>
 								<div class="control" id="depthRow"
-									style="gap:8px; width:100%; align-items:center">
+									style="gap:8px; width:100%; align-items:center"
+									title="Maximum unique colours allowed. Higher → better quality; Lower → better compression.">
 									<span
-										style="font-size:0.8rem;color:var(--muted);min-width:80px">Colours:</span>
+										style="font-size:0.8rem;color:var(--muted);min-width:108px">Colours:</span>
 									<input type="range" id="depth" min="2" max="64"
 										value="16" step="1" />
-									<span class="range-value" id="depthVal">16</span>
+									<span class="range-value"
+										id="depthVal">16</span>
 								</div>
 								<div class="control hidden" id="monoFgRow"
-									style="gap:8px; width:100%">
+									style="gap:8px; width:100%"
+									title="Custom text colour for Monochrome.">
 									<span
-										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Foreground:</span>
+										style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Foreground:</span>
 									<input type="color" id="fg" value="#00ff00" />
-									<span class="range-value" id="fgVal">#00ff00</span>
+									<span class="range-value"
+										id="fgVal">#00ff00</span>
 								</div>
 								<div class="control hidden" id="monoBgRow"
-									style="gap:8px; width:100%">
+									style="gap:8px; width:100%"
+									title="Custom background colour for Monochrome.">
 									<span
-										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Background:</span>
+										style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Background:</span>
 									<input type="color" id="bg" value="#000000" />
-									<span class="range-value" id="bgVal">#000000</span>
+									<span class="range-value"
+										id="bgVal">#000000</span>
 								</div>
 							</div>
 						</div>
 					</div>
-					<!-- Char mode -->
-					<div class="row">
-						<label for="charMode">Char Mode</label>
+					<!-- Character mode -->
+					<div class="row"
+						title="ASCII: Uses text characters for edges and shading. Block: Uses density-based blocks (█▓▒░).">
+						<label for="charMode">Character Mode</label>
 						<div class="control">
 							<select id="charMode">
-								<option value="ascii" selected>ASCII (edge-aware)
+								<option value="ascii" selected
+									title="Edge-aware characters for better shape definition.">
+									ASCII (edge-aware)
 								</option>
 								<option value="block">Block (█▓▒░)</option>
 							</select>
 						</div>
 					</div>
 					<!-- Brightness -->
-					<div class="row">
+					<div class="row"
+						title="Increases (higher) or decreases (lower) image exposure.">
 						<label for="brightnessAdj">Brightness</label>
 						<div class="control">
-							<input type="range" id="brightnessAdj" min="-100" max="100" value="0" step="1" />
+							<input type="range" id="brightnessAdj" min="-100" max="100"
+								value="0" step="1" />
 							<span class="range-value" id="brightVal">0</span>
 						</div>
 					</div>
 					<!-- Contrast -->
-					<div class="row">
+					<div class="row"
+						title="Higher → more extreme darks and lights; Lower → flatter, more muted range.">
 						<label for="contrastAdj">Contrast</label>
 						<div class="control">
-							<input type="range" id="contrastAdj" min="-100" max="100" value="0" step="1" />
+							<input type="range" id="contrastAdj" min="-100" max="100"
+								value="0" step="1" />
 							<span class="range-value" id="contrastVal">0</span>
 						</div>
 					</div>
 
 					<!-- Trim -->
-					<div class="row">
+					<div class="row" title="Select the start and end points of the video.">
 						<label>Trim</label>
 						<div class="control" style="gap: 10px;">
 							<div
@@ -307,7 +355,7 @@
 						</div>
 					</div>
 					<!-- Crop -->
-					<div class="row">
+					<div class="row" title="Define a sub-area of the video to convert.">
 						<label>Crop</label>
 						<div class="control" style="flex-wrap: wrap; gap: 4px;">
 							<div
@@ -329,7 +377,8 @@
 						</div>
 					</div>
 					<!-- Subject Isolation -->
-					<div class="row" id="fgIsolationRow" style="margin-top: 8px;">
+					<div class="row" id="fgIsolationRow" style="margin-top: 8px;"
+						title="Isolate objects using AI or motion to isolate the foreground; higher sensitivity captures more detail.">
 						<label>Subject Isolation</label>
 						<div class="control"
 							style="flex-direction: column; align-items: stretch; gap: 8px;">
@@ -343,23 +392,24 @@
 
 							<div id="fgSubOptions" class="hidden"
 								style="display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--border); padding-left: 12px; margin-left: 8px; margin-top: 4px;">
-								<div
-									style="display: flex; align-items: center; gap: 8px; width: 100%;">
+								<div style="display: flex; align-items: center; gap: 8px; width: 100%;"
+									title="How to handle the area behind isolated subjects.">
 									<span
-										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Background:</span>
+										style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Background:</span>
 									<select id="fgBackground" style="flex: 1;">
 										<option value="transparent" selected>
 											Transparent
 										</option>
-										<option value="solid">Solid color
+										<option value="solid">Solid colour
 										</option>
 										<option value="keep">Freeze frame
 										</option>
 									</select>
 								</div>
 								<div class="control" id="fgThresholdRow"
-									style="gap:8px; width:100%; align-items:center">
-									<span style="font-size:0.8rem;color:var(--muted);min-width:80px"
+									style="gap:8px; width:100%; align-items:center"
+									title="Adjustment for isolation accuracy. Higher → more aggressive isolation.">
+									<span style="font-size:0.8rem;color:var(--muted);min-width:108px"
 										id="fgThresholdLabel">Sensitivity</span>
 									<input type="range" id="fgThreshold" min="5"
 										max="80" value="20" step="1" />
@@ -367,9 +417,10 @@
 										id="fgThresholdVal">20</span>
 								</div>
 								<div class="control" id="fgBgRow"
-									style="gap:8px; width:100%">
+									style="gap:8px; width:100%"
+									title="Colour to fill the isolated background (when 'Solid colour' is selected).">
 									<span
-										style="font-size: 0.8rem; color: var(--muted); min-width: 80px;">Color:</span>
+										style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Colour:</span>
 									<input type="color" id="fgBg" value="#000000" />
 									<span class="range-value"
 										id="fgBgVal">#000000</span>
@@ -379,7 +430,8 @@
 					</div>
 
 					<!-- Options -->
-					<div class="row">
+					<div class="row"
+						title="Processing speedup by omitting the animated GIF thumbnail generation.">
 						<label>Options</label>
 						<div class="control"
 							style="flex-direction: column; gap: 8px; align-items: flex-start;">
@@ -393,7 +445,8 @@
 
 				<!-- Estimate -->
 				<div class="estimate hidden" id="estimateArea">
-					Estimated bundle: <span class="val" id="estimateVal">—</span>
+					Estimated sizes — preview.gif: <span class="val" id="estimateGifVal">—</span>
+					&nbsp;·&nbsp; bundle.js: <span class="val" id="estimateVal">—</span>
 				</div>
 
 				<!-- Action buttons -->

@@ -1,10 +1,10 @@
 {
-	"name": "ascii-fy",
-	"version": "1.0.0",
-	"description": "High-performance CLI tool to convert video files into ASCII art animations for the web",
+	"name": "ascii-fi",
+	"version": "1.1.0",
+	"description": "High-performance video-to-ASCII-fi conversion engine for web and terminal",
 	"type": "module",
 	"bin": {
-		"ascii-fy": "./index.js"
+		"ascii-fi": "./index.js"
 	},
 	"main": "./lib/api.js",
 	"exports": {

@@ -146,9 +146,6 @@ function resetFileSelection() {
 	dom.tabConvertedGif.disabled = true;
 	dom.tabConvertedBundle.classList.remove('active');
 	dom.tabConvertedBundle.disabled = true;
-	dom.tabFramePreview.classList.remove('active');
-	dom.tabFramePreview.disabled = true;
-	dom.framePreview.classList.add('hidden');
 	dom.bundleViewer.classList.add('hidden');
 	dom.bundleIframe.classList.add('hidden');
 	dom.bundleIframe.src = 'about:blank';
@@ -235,8 +232,10 @@ function updateInfoBar(tab) {
 		dom.infoFrames.textContent = (d.totalFrames || d.frames || 0).toLocaleString();
 		const parts = [];
 		if (d.bundleSize) parts.push(formatBytes(d.bundleSize) + ' bundle');
-		if (d.gifSize) parts.push(formatBytes(d.gifSize) + ' GIF');
+		if (d.gifSize) parts.push(formatBytes(d.gifSize) + ' .gif');
 		dom.infoSize.textContent = parts.join(' · ') || '—';
+		if (d.duration != null) dom.infoDuration.textContent = Number(d.duration).toFixed(2) + 's';
+		else if (d.totalFrames && d.fps) dom.infoDuration.textContent = (d.totalFrames / d.fps).toFixed(2) + 's';
 		// Clear any stale aspect-ratio override — the GIF pixel dimensions are already correct
 		dom.previewGif.style.aspectRatio = '';
 	} else if (state.videoMeta) {
@@ -245,8 +244,12 @@ function updateInfoBar(tab) {
 		const visW = Math.round(state.videoMeta.width * sar);
 		dom.infoDims.textContent = visW + '×' + state.videoMeta.height;
 		if (state.videoMeta.fps) dom.infoFps.textContent = state.videoMeta.fps.toFixed(1);
-		if (state.videoMeta.duration && state.videoMeta.fps) {
-			dom.infoFrames.textContent = Math.round(state.videoMeta.duration * state.videoMeta.fps).toLocaleString();
+		if (state.videoMeta.duration) {
+			const sec = state.videoMeta.duration;
+			dom.infoDuration.textContent = sec.toFixed(2) + 's';
+			if (state.videoMeta.fps) {
+				dom.infoFrames.textContent = Math.round(sec * state.videoMeta.fps).toLocaleString();
+			}
 		}
 		dom.infoSize.textContent = state.videoFileSize ? formatBytes(state.videoFileSize) : '—';
 		if (state.videoMeta.width && state.videoMeta.height) dom.previewVideo.style.aspectRatio = visW + ' / ' + state.videoMeta.height;
@@ -270,7 +273,8 @@ export function showResults(d) {
 	dom.resultsArea.classList.add('active');
 	dom.resultActions.innerHTML = '';
 	if (d.htmlPath) addAction('Open Player', d.htmlPath);
-	if (d.gifPath) addAction('Open GIF', d.gifPath);
+	if (d.gifPath) addAction('Open preview.gif', d.gifPath);
+	if (d.outputDir) addAction('Open Folder', d.outputDir);
 	if (d.bundleUrl) {
 		const copyBtn = document.createElement('button');
 		copyBtn.className = 'btn btn-secondary';
@@ -297,7 +301,6 @@ export function showResults(d) {
 		};
 		dom.resultActions.appendChild(copyBtn);
 	}
-	if (d.outputDir) addAction('Open Folder', d.outputDir);
 }
 function addAction(label, path) {
 	const btn = document.createElement('button');
@@ -313,19 +316,269 @@ function addAction(label, path) {
 	dom.resultActions.appendChild(btn);
 }
 
+/* ── Live ASCII canvas overlay ───────────────────────────────── */
+
+const LIVE_RAMP = ' .:-=+*#%@';
+
+let _liveRafId = null;
+let _liveCanvas = null;
+let _liveCtx = null;
+let _liveAsciiEl = null;
+
+function startLiveAscii(videoEl, containerEl) {
+	// Hidden capture canvas
+	_liveCanvas = document.createElement('canvas');
+	_liveCanvas.style.display = 'none';
+	_liveCtx = _liveCanvas.getContext('2d', { willReadFrequently: true });
+
+	// ASCII overlay <pre>
+	_liveAsciiEl = document.createElement('pre');
+	Object.assign(_liveAsciiEl.style, {
+		position: 'absolute', inset: '0',
+		margin: '0', padding: '4px',
+		fontFamily: "'Cascadia Code','Consolas',monospace",
+		fontSize: '6px', lineHeight: '1',
+		color: '#00e87b', background: 'transparent',
+		pointerEvents: 'none', zIndex: '10',
+		whiteSpace: 'pre', overflow: 'hidden',
+		mixBlendMode: 'normal',
+	});
+	containerEl.style.position = 'relative';
+	containerEl.style.background = '#000';
+	containerEl.appendChild(_liveCanvas);
+	containerEl.appendChild(_liveAsciiEl);
+
+	const COLS = 80;
+
+	function drawFrame() {
+		if (!state.webcamStream) return;
+		_liveRafId = requestAnimationFrame(drawFrame);
+		if (videoEl.readyState < 2) return;
+
+		// Sample at COLS wide, preserve aspect
+		const vw = videoEl.videoWidth || 640;
+		const vh = videoEl.videoHeight || 480;
+		const ROWS = Math.max(1, Math.round(COLS * (vh / vw) * 0.45));
+		_liveCanvas.width = COLS;
+		_liveCanvas.height = ROWS;
+		_liveCtx.drawImage(videoEl, 0, 0, COLS, ROWS);
+
+		let data;
+		try { data = _liveCtx.getImageData(0, 0, COLS, ROWS).data; }
+		catch { return; } // cross-origin guard
+
+		let out = '';
+		for (let y = 0; y < ROWS; y++) {
+			for (let x = 0; x < COLS; x++) {
+				const i = (y * COLS + x) * 4;
+				const lum = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722);
+				const ci = Math.min(LIVE_RAMP.length - 1, Math.floor((lum / 255) * LIVE_RAMP.length));
+				out += LIVE_RAMP[ci];
+			}
+			out += '\n';
+		}
+		_liveAsciiEl.textContent = out;
+	}
+
+	drawFrame();
+}
+
+function stopLiveAscii() {
+	if (_liveRafId) { cancelAnimationFrame(_liveRafId); _liveRafId = null; }
+	if (_liveAsciiEl) { _liveAsciiEl.remove(); _liveAsciiEl = null; }
+	if (_liveCanvas) { _liveCanvas.remove(); _liveCanvas = null; }
+	_liveCtx = null;
+	// Reset container bg
+	dom.previewVideoContainer.style.background = '';
+}
+
+function formatDuration(sec) {
+	const m = Math.floor(sec / 60);
+	const s = sec % 60;
+	return m + ':' + String(s).padStart(2, '0');
+}
+
+async function startWebcam() {
+	// Request camera + microphone
+	let stream;
+	try {
+		stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+	} catch (err) {
+		alert('Could not access webcam: ' + err.message);
+		return;
+	}
+
+	setState('webcamStream', stream);
+	setState('recordedChunks', []);
+	setState('mediaRecorder', null);
+
+	// Show live preview — disable loop/controls for live feed
+	dom.previewVideo.srcObject = stream;
+	dom.previewVideo.muted = true;
+	dom.previewVideo.loop = false;
+	dom.previewVideo.removeAttribute('controls');
+	dom.previewVideoContainer.classList.remove('hidden');
+	dom.previewVideo.classList.remove('hidden');
+	dom.dropZone.classList.add('hidden');
+	dom.fileHeader.classList.add('hidden');
+	dom.previewTabs.classList.add('hidden');
+
+	// Show webcam bar
+	dom.webcamBar.classList.remove('hidden');
+	dom.recordStartBtn.disabled = false;
+	dom.recordPauseBtn.disabled = true;
+	dom.recordPauseBtn.style.display = 'none';
+	dom.recordStopBtn.disabled = true;
+	dom.recordStopBtn.style.display = 'none';
+	dom.recordStatus.textContent = 'Live — click Record to start';
+	dom.recordTimer.style.display = 'none';
+
+	await dom.previewVideo.play().catch(() => { });
+	// Start live ASCII overlay
+	startLiveAscii(dom.previewVideo, dom.previewVideoContainer);
+}
+
+function startRecording() {
+	if (!state.webcamStream) return;
+	// Stop live ASCII overlay for the duration of the recording
+	stopLiveAscii();
+
+	const chunks = [];
+	const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+		.find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+	const mr = new MediaRecorder(state.webcamStream, mimeType ? { mimeType } : {});
+	setState('mediaRecorder', mr);
+	setState('recordedChunks', chunks);
+
+	mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+	mr.onstop = async () => {
+		const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+		const blob = new Blob(chunks, { type: mr.mimeType || 'video/webm' });
+		const filename = 'webcam-' + Date.now() + '.' + ext;
+
+		dom.recordStatus.textContent = 'Uploading…';
+		dom.recordTimer.style.display = 'none';
+
+		// Stop webcam tracks
+		if (state.webcamStream) {
+			state.webcamStream.getTracks().forEach(t => t.stop());
+			setState('webcamStream', null);
+		}
+		// Restore video element defaults for playback
+		stopLiveAscii();
+		dom.previewVideo.srcObject = null;
+		dom.previewVideo.muted = true;
+		dom.previewVideo.loop = true;
+		dom.previewVideo.setAttribute('controls', '');
+
+		try {
+			const upRes = await fetch('/api/upload', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/octet-stream',
+					'X-Filename': encodeURIComponent(filename),
+				},
+				body: blob,
+			});
+			const upData = await upRes.json();
+			if (upData.ok) {
+				// Hand off to normal file pipeline
+				const blobUrl = URL.createObjectURL(blob);
+				setState('blobUrl', blobUrl);
+				setState('selectedPath', upData.resolvedPath);
+				setState('videoFileSize', blob.size);
+
+				showFileSelected(filename);
+				dom.previewVideo.src = blobUrl;
+				dom.previewVideoContainer.classList.remove('hidden');
+				dom.previewVideo.classList.remove('hidden');
+				dom.previewVideo.load();
+				dom.previewVideo.play().catch(() => { });
+
+				await probeFile(upData.resolvedPath);
+				dom.webcamBar.classList.add('hidden');
+			} else {
+				dom.recordStatus.textContent = 'Upload failed: ' + (upData.error || 'unknown');
+			}
+		} catch (err) {
+			dom.recordStatus.textContent = 'Upload error: ' + err.message;
+		}
+
+		// Hide webcam bar controls
+		dom.recordPauseBtn.style.display = 'none';
+		dom.recordStopBtn.style.display = 'none';
+		dom.recordStartBtn.disabled = true;
+		dom.recordStartBtn.style.display = 'none';
+	};
+
+	mr.start(200); // collect data every 200ms
+
+	// Timer
+	let elapsed = 0;
+	dom.recordTimer.textContent = formatDuration(0);
+	dom.recordTimer.style.display = '';
+	const timer = setInterval(() => {
+		if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+			elapsed++;
+			dom.recordTimer.textContent = formatDuration(elapsed);
+		}
+	}, 1000);
+	setState('recordTimer', timer);
+
+	// Button states
+	dom.recordStartBtn.disabled = true;
+	dom.recordPauseBtn.disabled = false;
+	dom.recordPauseBtn.style.display = '';
+	dom.recordPauseBtn.textContent = '⏸ Pause';
+	dom.recordStopBtn.disabled = false;
+	dom.recordStopBtn.style.display = '';
+	dom.recordStatus.textContent = 'Recording…';
+}
+
+function stopRecording() {
+	if (state.recordTimer) { clearInterval(state.recordTimer); setState('recordTimer', null); }
+	if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+		state.mediaRecorder.stop();
+	}
+}
+
+function togglePause() {
+	if (!state.mediaRecorder) return;
+	if (state.mediaRecorder.state === 'recording') {
+		state.mediaRecorder.pause();
+		dom.recordPauseBtn.textContent = '⏯ Resume';
+		dom.recordStatus.textContent = 'Paused';
+	} else if (state.mediaRecorder.state === 'paused') {
+		state.mediaRecorder.resume();
+		dom.recordPauseBtn.textContent = '⏸ Pause';
+		dom.recordStatus.textContent = 'Recording…';
+	}
+}
+
 function stopWebcam() {
+	if (state.recordTimer) { clearInterval(state.recordTimer); setState('recordTimer', null); }
+	if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+		state.mediaRecorder.stop();
+	}
 	if (state.webcamStream) {
 		state.webcamStream.getTracks().forEach(t => t.stop());
 		setState('webcamStream', null);
 	}
 	dom.previewVideo.srcObject = null;
+	dom.previewVideo.muted = true;
+	dom.previewVideo.loop = true;
+	dom.previewVideo.setAttribute('controls', '');
 	setState('mediaRecorder', null);
 	setState('recordedChunks', []);
-	if (state.recordTimer) { clearInterval(state.recordTimer); setState('recordTimer', null); }
 	dom.webcamBar.classList.add('hidden');
 	dom.recordStartBtn.disabled = true;
-	dom.recordStopBtn.disabled = true;
-	dom.recordStatus.textContent = 'Ready';
+	dom.recordStartBtn.style.display = '';
+	dom.recordPauseBtn.style.display = 'none';
+	dom.recordStopBtn.style.display = 'none';
+	dom.recordStatus.textContent = 'Ready — click Record to start';
+	dom.recordTimer.style.display = 'none';
 }
 
 /* ── DOM Init Logic ────────────────────────────────────────── */
@@ -363,6 +616,7 @@ makeEditable(dom.contrastVal, dom.contrastSlider);
 makeEditable(dom.detailVal, dom.detailSlider);
 makeEditable(dom.trimStartVal, dom.trimStartSlider, { step: 0.1 });
 makeEditable(dom.trimEndVal, dom.trimEndSlider, { step: 0.1 });
+makeEditable(dom.qStepValEl, dom.qStepSlider);
 
 dom.widthSlider.oninput = () => syncResolution('width');
 dom.heightSlider.oninput = () => syncResolution('height');
@@ -371,17 +625,25 @@ dom.lockAspectChk.onchange = () => {
 };
 
 dom.fpsSlider.oninput = () => { dom.fpsVal.textContent = dom.fpsSlider.value; updateEstimate(); };
+dom.qStepSlider.oninput = () => { dom.qStepValEl.textContent = dom.qStepSlider.value; updateEstimate(); };
 dom.depthSlider.oninput = () => { dom.depthValEl.textContent = dom.depthSlider.value; updateEstimate(); };
 dom.brightSlider.oninput = () => { dom.brightVal.textContent = dom.brightSlider.value; updateVideoFilters(); };
 dom.contrastSlider.oninput = () => { dom.contrastVal.textContent = dom.contrastSlider.value; updateVideoFilters(); };
-dom.detailSlider.oninput = () => { dom.detailVal.textContent = dom.detailSlider.value; };
+dom.detailSlider.oninput = () => { dom.detailVal.textContent = dom.detailSlider.value; updateEstimate(); };
 dom.fgMode.onchange = updateForegroundFields;
 dom.fgThreshold.oninput = () => { dom.fgThresholdVal.textContent = dom.fgThreshold.value; };
 dom.fgInput.oninput = () => { dom.fgValEl.textContent = dom.fgInput.value; };
 dom.bgInput.oninput = () => { dom.bgValEl.textContent = dom.bgInput.value; };
 dom.fgBgInput.oninput = () => { dom.fgBgVal.textContent = dom.fgBgInput.value; };
 
-dom.livePreview.onchange = updateVideoFilters;
+dom.rawJsToggle.addEventListener('click', () => {
+	const nowRaw = dom.rawJsToggle.getAttribute('aria-pressed') !== 'true';
+	dom.rawJsToggle.setAttribute('aria-pressed', String(nowRaw));
+	dom.showRawJsChk.checked = nowRaw;
+	if (dom.tabConvertedBundle.classList.contains('active')) {
+		dom.tabConvertedBundle.click(); // re-trigger tab logic
+	}
+});
 dom.fgBackground.onchange = updateForegroundFields;
 
 dom.modeSelect.onchange = () => { updateModeFields(); updateEstimate(); };
@@ -466,6 +728,8 @@ dom.tabOriginal.addEventListener('click', () => {
 	updateInfoBar('original');
 	dom.resultsArea.classList.remove('active');
 	resetPreviewBg();
+	// Reset toggle to Live Preview
+	if (dom.rawJsToggle) { dom.rawJsToggle.setAttribute('aria-pressed', 'false'); dom.showRawJsChk.checked = false; }
 });
 dom.tabConvertedGif.addEventListener('click', () => {
 	if (!state.convertedGifBlob) return;
@@ -482,6 +746,7 @@ dom.tabConvertedGif.addEventListener('click', () => {
 	dom.previewVideo.pause();
 	updateInfoBar('converted');
 	if (state.lastConvertResult) dom.resultsArea.classList.add('active');
+	dom.showRawJsBox.classList.add('hidden');
 	showPreviewBgBar();
 	applyPreviewBg(state.currentPreviewBg);
 });
@@ -497,6 +762,9 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 	if (state.lastConvertResult) dom.resultsArea.classList.add('active');
 	showPreviewBgBar();
 	dom.showRawJsBox.classList.remove('hidden');
+	// Sync toggle visual state with current checkbox
+	const isRaw = dom.showRawJsChk.checked;
+	if (dom.rawJsToggle) dom.rawJsToggle.setAttribute('aria-pressed', String(isRaw));
 
 	if (dom.showRawJsChk.checked) {
 		dom.bundleIframe.classList.add('hidden');
@@ -504,7 +772,9 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 		if (!state.bundleTextCache) {
 			try {
 				dom.bundleViewer.textContent = 'Loading bundle.js…';
-				const resp = await fetch(state.convertedBundleUrl + '?t=' + Date.now());
+				// Load the actual bundle.js (not demo.html)
+				const rawUrl = state.convertedBundleJsUrl || state.convertedBundleUrl;
+				const resp = await fetch(rawUrl + '?t=' + Date.now());
 				setState('bundleTextCache', await resp.text());
 			} catch (err) {
 				setState('bundleTextCache', '// Failed to load bundle.js: ' + err.message);
@@ -527,6 +797,10 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 // Action logic
 dom.convertBtn.addEventListener('click', startConvert);
 dom.stopBtn.addEventListener('click', stopConversion);
+dom.webcamBtn.addEventListener('click', startWebcam);
+dom.recordStartBtn.addEventListener('click', startRecording);
+dom.recordPauseBtn.addEventListener('click', togglePause);
+dom.recordStopBtn.addEventListener('click', stopRecording);
 dom.undoBtn.addEventListener('click', () => {
 	if (!state.gifHistory.length) return;
 	const prev = state.gifHistory.pop();

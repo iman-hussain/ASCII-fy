@@ -4,9 +4,24 @@ import { formatBytes } from './utils.js';
 import { startConvert, stopConversion } from './api.js';
 
 /* ── Estimate bundle size ──────────────────────────── */
-export function estimateBundleBase({ w, h, frames, mode }) {
-	const bpc = mode === 'mono' ? 0.12 : mode === 'palette' ? 0.35 : 0.5;
-	return Math.round(w * h * frames * bpc * 0.75 + 18000);
+export function estimateBundleBase({ w, h, frames, mode, depth = 16, qStep = 24, detail = 100 }) {
+	let bpc = 0.5; // default truecolor
+
+	// Detail adds up to a 10% variance (less detail = flatter image = better compression)
+	const detailFactor = 0.9 + (detail / 1000);
+	// Quantise scales the size significantly
+	const qFactor = Math.max(0.1, 1 - (qStep / 128));
+
+	if (mode === 'mono') {
+		bpc = 0.12;
+	} else if (mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') {
+		const colourFactor = Math.log2(Math.max(2, depth)) / 8; // scales with depth
+		bpc = 0.4 * colourFactor * qFactor;
+	} else if (mode === 'truecolor') {
+		bpc = 0.5 * qFactor;
+	}
+
+	return Math.round(w * h * frames * bpc * detailFactor * 0.75 + 18000);
 }
 
 export function updateResolution() {
@@ -16,20 +31,31 @@ export function updateResolution() {
 }
 
 export function updateEstimate() {
-	if (!state.videoMeta) { dom.estimateArea.classList.add('hidden'); return; }
 	const w = parseInt(dom.widthSlider.value);
 	const h = parseInt(dom.heightSlider.value);
 	const fps = parseInt(dom.fpsSlider.value);
 	const mode = dom.modeSelect.value;
-	const dur = state.videoMeta.duration || 10;
+	const depth = parseInt(dom.depthSlider?.value) || 16;
+	const qStep = parseInt(dom.qStepSlider?.value) || 24;
+	const detail = parseInt(dom.detailSlider?.value) || 100;
+
+	// Default to a typical 10s video if no meta is loaded so that sliders update instantly anyway
+	const dur = state.videoMeta ? (state.videoMeta.duration || 10) : 10;
 	const trimS = parseFloat(dom.trimStartInp.value) || 0;
 	const trimE = parseFloat(dom.trimEndInp.value) || dur;
 	const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
 	const frames = Math.max(1, Math.round(effDur * fps));
-	const base = estimateBundleBase({ w, h, frames, mode });
+
+	const base = estimateBundleBase({ w, h, frames, mode, depth, qStep, detail });
 	const est = Math.round(base * state.estimateScale);
+
 	dom.estimateArea.classList.remove('hidden');
 	dom.estimateVal.textContent = '~' + formatBytes(est);
+	// GIF is pixel-based (CELL_W=6, CELL_H=8 per char) and uncompressed frames —
+	// typically ~4-6x larger than the binary bundle. Use 5x as a conservative estimate.
+	const gifEst = est * 5;
+	const gifEl = document.getElementById('estimateGifVal');
+	if (gifEl) gifEl.textContent = '~' + formatBytes(gifEst);
 }
 
 /* ── Editable slider values (click to type) ─────────── */
@@ -85,11 +111,16 @@ export function updateVideoFilters() {
 
 export function updateModeFields() {
 	const m = dom.modeSelect.value;
-	dom.colourSubOptions.classList.toggle('hidden', m === 'truecolor');
+
+	// Sub-options container is visible for all modes (each has at least one sub-param)
+	dom.colourSubOptions.classList.remove('hidden');
+
+	dom.qStepRow.classList.toggle('hidden', m !== 'truecolor');
 	dom.paletteRow.classList.toggle('hidden', m !== 'palette');
 	dom.depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans' && m !== 'grayscale');
 	dom.monoFgRow.classList.toggle('hidden', m !== 'mono');
 	dom.monoBgRow.classList.toggle('hidden', m !== 'mono');
+
 	if (m === 'palette') updatePaletteSwatches();
 	else dom.paletteSwatch.innerHTML = '';
 
@@ -134,7 +165,6 @@ export function applyPreviewBg(bg) {
 	// Apply to all preview containers
 	dom.previewGif.style.background = bgCss;
 	dom.previewContent.style.background = bgCss;
-	dom.framePreview.style.background = bgCss;
 	dom.bundleViewer.style.background = bgCss;
 	// For the iframe, postMessage is the only way to set background inside
 	// (the iframe's own HTML controls its background)
@@ -148,47 +178,12 @@ export function applyPreviewBg(bg) {
 	}
 }
 export function resetPreviewBg() {
-	[dom.previewGif, dom.previewContent, dom.framePreview, dom.bundleViewer].forEach(el => el.style.background = '');
+	[dom.previewGif, dom.previewContent, dom.bundleViewer].forEach(el => el.style.background = '');
 	dom.bundleIframe.style.background = '';
 	dom.previewBgBar.classList.add('hidden');
 	dom.showRawJsBox.classList.add('hidden');
 }
-export function showResults(d) {
-	dom.resultsArea.classList.add('active');
-	dom.resultActions.innerHTML = '';
-	if (d.htmlPath) addAction('Open Player', d.htmlPath);
-	if (d.gifPath) addAction('Open GIF', d.gifPath);
-	if (d.bundlePath) {
-		const btn = document.createElement('button');
-		btn.className = 'btn btn-secondary copy-btn';
-		btn.textContent = 'Copy Raw .js';
-		btn.onclick = async () => {
-			try {
-				const resp = await fetch(state.convertedBundleUrl + '?t=' + Date.now());
-				const text = await resp.text();
-				await copyToClipboard(text);
-				btn.textContent = 'Copied!';
-				setTimeout(() => btn.textContent = 'Copy Raw .js', 2000);
-			} catch (err) {
-				console.error('Copy failed', err);
-			}
-		};
-		dom.resultActions.appendChild(btn);
-	}
-	if (d.outputDir) addAction('Open Folder', d.outputDir);
-}
 
-async function copyToClipboard(text) {
-	if (navigator.clipboard && navigator.clipboard.writeText) {
-		return navigator.clipboard.writeText(text);
-	}
-	const t = document.createElement('textarea');
-	t.value = text;
-	document.body.appendChild(t);
-	t.select();
-	document.execCommand('copy');
-	document.body.removeChild(t);
-}
 export function showPreviewBgBar() {
 	dom.previewBgBar.classList.remove('hidden');
 	const first = dom.previewBgBar.querySelector('.swatch-btn');

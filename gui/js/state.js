@@ -5,7 +5,8 @@ export const state = {
 	blobUrl: null,
 	convertedGifUrl: null,
 	convertedGifBlob: null,   // blob URL of current converted GIF
-	convertedBundleUrl: null, // URL for the bundle.js file
+	convertedBundleUrl: null, // URL for the bundle.js file (HTML wrapper)
+	convertedBundleJsUrl: null, // URL for the raw bundle.js file
 	bundleTextCache: null,    // cached bundle.js content
 	conversionStartTime: null,
 	isConverting: false,
@@ -21,7 +22,8 @@ export const state = {
 	isCropping: false,
 	framePreviewHtml: null,
 	currentPreviewBg: '#000000',
-	dragContext: null
+	dragContext: null,
+	qStep: 24
 };
 
 // Safe setters
@@ -46,6 +48,7 @@ export function resetState() {
 	if (state.blobUrl) { URL.revokeObjectURL(state.blobUrl); state.blobUrl = null; }
 	state.framePreviewHtml = null;
 	state.convertedBundleUrl = null;
+	state.convertedBundleJsUrl = null;
 	state.bundleTextCache = null;
 	state.isCropping = false;
 	state.dragContext = null;

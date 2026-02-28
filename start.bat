@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
-title ASCII-fy GUI
+title ASCII-fi GUI
 
 where node >nul 2>nul
 if !errorlevel! neq 0 (

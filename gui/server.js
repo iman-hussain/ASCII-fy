@@ -1,5 +1,5 @@
 /**
- * ascii-fy – Lightweight GUI server.
+ * ASCII-fi – Lightweight GUI server.
  *
  * Spins up a local HTTP server on a random port, serves the GUI page, and
  * opens the default browser.  Zero extra dependencies — uses only Node built-ins
@@ -27,7 +27,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, '..');
 
-const ML_MODEL_URL = process.env.ASCII_FY_MODEL_URL
+const ML_MODEL_URL = process.env.ASCII_FI_MODEL_URL
 	|| 'https://huggingface.co/onnx-community/mediapipe_selfie_segmentation/resolve/main/onnx/model.onnx';
 
 /**
@@ -48,7 +48,7 @@ async function downloadMlModel(destPath) {
 
 		const get = (url, redirects = 5) => {
 			const mod = url.startsWith('https') ? https : http;
-			mod.get(url, { headers: { 'User-Agent': 'ascii-fy' } }, (res) => {
+			mod.get(url, { headers: { 'User-Agent': 'ascii-fi' } }, (res) => {
 				if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
 					res.resume();
 					return get(res.headers.location, redirects - 1);
@@ -548,8 +548,8 @@ async function handler(req, res) {
 				const palette = opts.palette || 'realistic';
 				const charMode = opts.charMode || 'ascii';
 				const outlineOnly = !!opts.outlineOnly;
-			const detail = typeof opts.detail === 'number' ? opts.detail : (outlineOnly ? 0 : 100);
-			const midTime = opts.time != null ? opts.time
+				const detail = typeof opts.detail === 'number' ? opts.detail : (outlineOnly ? 0 : 100);
+				const midTime = opts.time != null ? opts.time
 					: (meta.duration ? meta.duration / 2 : 1);
 
 				/* Build render config (same logic as runConversion) */
@@ -566,19 +566,19 @@ async function handler(req, res) {
 					const stats = await sampleVideoLuminance(resolved, w, meta);
 					tone = adaptiveTone(depth, stats, inputExt);
 					tone.saturation = 0;
-					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: '#000' } };
+					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
 				} else if (mode === 'palette') {
 					const pal = buildPresetPalette(palette, depth);
 					const stats = await sampleVideoLuminance(resolved, w, meta);
 					tone = adaptiveTone(depth, stats, inputExt);
-					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: '#000' } };
+					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
 				} else if (mode === 'kmeans') {
 					const pal = await extractPaletteFromVideo(resolved, w, meta, depth);
 					const stats = await sampleVideoLuminance(resolved, w, meta);
 					tone = adaptiveTone(depth, stats, inputExt);
-					render = { mode: 'palette', palette: pal || makeGrayscalePalette(depth), charMode, theme: { fg: '#111', bg: '#000' } };
+					render = { mode: 'palette', palette: pal || makeGrayscalePalette(depth), charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
 				} else {
-					render = { mode: 'truecolor', palette: null, charMode, theme: { fg: '#111', bg: '#000' } };
+					render = { mode: 'truecolor', palette: null, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
 					tone = inputExt === '.gif'
 						? { contrast: 1.35, brightness: 0.04, saturation: 1.2, gamma: 1.1 }
 						: { contrast: 1.15, brightness: 0.02, saturation: 1.05, gamma: 1.05 };
@@ -596,8 +596,8 @@ async function handler(req, res) {
 					targetFps: 1,
 					tone,
 					charMode,
-				detail,
-				collectFrames: false,
+					detail,
+					collectFrames: false,
 					onFrame: (idx, frame) => {
 						if (!capturedFrame) capturedFrame = frame;
 					},
@@ -798,6 +798,6 @@ const server = http.createServer(handler);
 server.listen(PORT, '127.0.0.1', () => {
 	const addr = server.address();
 	const url = `http://127.0.0.1:${addr.port}`;
-	console.log(`\n  ascii-fy GUI → ${url}\n`);
+	console.log(`\n  ASCII-fi GUI → ${url}\n`);
 	openPath(url);
 });

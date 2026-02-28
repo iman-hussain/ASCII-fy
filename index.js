@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ascii-fy – CLI entry point.
+ * ASCII-fi – CLI entry point.
  *
  * Supports two modes:
  *
@@ -152,7 +152,7 @@ function parseCliArgs(argv) {
 
 function printHelp() {
 	console.log(`
-  ascii-fy – Video → ASCII Art CLI
+  ASCII-fi – Video → ASCII Art CLI
 
   Usage:
     node index.js                              Interactive mode
@@ -629,7 +629,7 @@ async function main() {
 	const hasCLIFile = !!cli.inputFile;
 
 	console.log('\n  ╔═══════════════════════════╗');
-	console.log('  ║   ascii-fy  v2.0.0        ║');
+	console.log('  ║   ASCII-fi  v1.1.0        ║');
 	console.log('  ║   Video → ASCII Art CLI    ║');
 	console.log('  ╚═══════════════════════════╝\n');
 
