@@ -5,6 +5,54 @@
  * in a separate thread so the GUI doesn't freeze during processing.
  */
 
+// Intercept console in worker to send logs to main thread
+const originalConsole = {
+	log: console.log,
+	error: console.error,
+	warn: console.warn,
+	info: console.info
+};
+
+console.log = function(...args) {
+	originalConsole.log.apply(console, args);
+	try {
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		self.postMessage({ type: 'LOG', level: 'info', message: msg });
+	} catch (e) {
+		// Fail silently
+	}
+};
+
+console.error = function(...args) {
+	originalConsole.error.apply(console, args);
+	try {
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		self.postMessage({ type: 'LOG', level: 'error', message: msg });
+	} catch (e) {
+		// Fail silently
+	}
+};
+
+console.warn = function(...args) {
+	originalConsole.warn.apply(console, args);
+	try {
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		self.postMessage({ type: 'LOG', level: 'warning', message: msg });
+	} catch (e) {
+		// Fail silently
+	}
+};
+
+console.info = function(...args) {
+	originalConsole.info.apply(console, args);
+	try {
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		self.postMessage({ type: 'LOG', level: 'info', message: msg });
+	} catch (e) {
+		// Fail silently
+	}
+};
+
 console.log('[Worker] Worker script loaded, preparing to import modules...');
 
 // Lazy-load modules to catch import errors

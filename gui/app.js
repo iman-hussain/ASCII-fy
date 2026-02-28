@@ -12,6 +12,9 @@ import {
 	syncTrimSlidersToInputs, onCropDrag, onCropDragEnd, getActiveCrop
 } from './js/crop-trim.js';
 
+// Initialize console interception ASAP to capture all console output
+interceptConsole();
+
 /* ── Core File Initialization ────────────────────────────────────────── */
 export async function probeFile(pathOrFile) {
 	// Guard against null or undefined input
@@ -29,21 +32,36 @@ export async function probeFile(pathOrFile) {
 			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
 			let timedOut = false;
 
-			// Add timeout for probe (90 seconds to allow FFmpeg to download from CDN)
+			// Add timeout for probe (120 seconds to allow FFmpeg to download from CDN)
+			// FFmpeg uses: 45s primary CDN + 45s mirror CDN = 90s total, plus 30s buffer
 			const timeout = setTimeout(() => {
 				timedOut = true;
-				appendLog("Video probe timed out after 90 seconds.", "error");
-				appendLog("This usually means FFmpeg failed to load from CDN.", "error");
-				appendLog("Check the log area above for detailed error messages.", "error");
+				appendLog("❌ Video probe timed out after 120 seconds.", "error");
+				appendLog("This usually means FFmpeg failed to load from both CDN sources.", "error");
+				appendLog("", "info");
+				appendLog("Possible causes:", "warning");
+				appendLog("1. No internet connection", "info");
+				appendLog("2. CDN services (unpkg.com, jsdelivr.net) are down", "info");
+				appendLog("3. Your network may be blocking CDN access", "info");
+				appendLog("4. Browser security headers not properly configured (COOP/COEP)", "info");
+				appendLog("", "info");
+				appendLog("Solutions to try:", "warning");
+				appendLog("1. Check your internet connection", "info");
+				appendLog("2. Refresh the page and wait for service worker to activate (1-2 seconds)", "info");
+				appendLog("3. Try a different network (e.g., mobile hotspot)", "info");
+				appendLog("4. Try a different browser", "info");
 				if (typeof SharedArrayBuffer === 'undefined') {
-					appendLog("⚠️ SharedArrayBuffer is not available. Reload the page and wait for the service worker to activate.", "error");
+					appendLog("", "info");
+					appendLog("⚠️ SharedArrayBuffer is NOT available. This is a critical issue.", "error");
+					appendLog("The service worker may not have activated properly.", "error");
+					appendLog("Try: Hard refresh (Ctrl+Shift+R on Windows, Cmd+Shift+R on Mac)", "warning");
 				}
 				dom.logArea.classList.add('active');
 				setState('videoMeta', null);
 				dom.convertBtn.disabled = true;
 				worker.terminate();
 				resolve(false);
-			}, 90000);
+			}, 120000);
 
 			worker.onerror = (err) => {
 				if (!timedOut) {
@@ -59,9 +77,17 @@ export async function probeFile(pathOrFile) {
 
 			worker.onmessage = (e) => {
 				if (timedOut) return;
+
+				const { type, info, error, level, message } = e.data;
+				
+				// Handle worker console logs
+				if (type === 'LOG') {
+					appendLog(message, level || 'info');
+					return;
+				}
+				
 				clearTimeout(timeout);
 
-				const { type, info, error } = e.data;
 				if (type === 'PROBE_SUCCESS') {
 					appendLog("Video loaded successfully!", "success");
 					setState('videoMeta', info || null);
@@ -1072,7 +1098,3 @@ dom.undoBtn.addEventListener('click', () => {
 	if (state.lastConvertResult) showResults(state.lastConvertResult);
 	dom.undoBtn.disabled = state.gifHistory.length === 0;
 });
-
-// Initialize console interception to show all logs in GUI
-interceptConsole();
-appendLog('Console logging initialized. All browser console output will appear here.', 'info');

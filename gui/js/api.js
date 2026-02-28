@@ -147,7 +147,13 @@ function endConversionUI() {
 
 // --- WASM Worker Message Handler ---
 function handleWasmMessage(e) {
-	const { type, index, chars, result, error, info } = e.data;
+	const { type, index, chars, result, error, info, level, message } = e.data;
+
+	// Handle worker console logs
+	if (type === 'LOG') {
+		appendLog(message, level || 'info');
+		return;
+	}
 
 	if (type === 'PROBE_SUCCESS') {
 		// Handled by promises in probeVideo hybrid wrapper
