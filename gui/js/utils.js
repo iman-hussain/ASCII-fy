@@ -11,9 +11,63 @@ export function formatBytes(bytes) {
 export function appendLog(msg, type = 'info') {
 	const div = document.createElement('div');
 	div.className = 'log-entry ' + type;
-	div.textContent = msg;
+
+	// Add timestamp
+	const timestamp = new Date().toLocaleTimeString('en-US', {
+		hour12: false,
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		fractionalSecondDigits: 3
+	});
+
+	const timeSpan = document.createElement('span');
+	timeSpan.className = 'log-timestamp';
+	timeSpan.textContent = `[${timestamp}] `;
+
+	const msgSpan = document.createElement('span');
+	msgSpan.className = 'log-message';
+	msgSpan.textContent = msg;
+
+	div.appendChild(timeSpan);
+	div.appendChild(msgSpan);
+
 	dom.logBox.appendChild(div);
 	dom.logBox.scrollTop = dom.logBox.scrollHeight;
+}
+
+// Intercept console methods to mirror output to GUI
+const originalConsole = {
+	log: console.log,
+	error: console.error,
+	warn: console.warn,
+	info: console.info
+};
+
+export function interceptConsole() {
+	console.log = function(...args) {
+		originalConsole.log.apply(console, args);
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+		appendLog(msg, 'info');
+	};
+
+	console.error = function(...args) {
+		originalConsole.error.apply(console, args);
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+		appendLog(msg, 'error');
+	};
+
+	console.warn = function(...args) {
+		originalConsole.warn.apply(console, args);
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+		appendLog(msg, 'warning');
+	};
+
+	console.info = function(...args) {
+		originalConsole.info.apply(console, args);
+		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+		appendLog(msg, 'info');
+	};
 }
 
 export function safeHtml(str) {

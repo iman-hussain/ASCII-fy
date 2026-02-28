@@ -13,9 +13,13 @@
 	--text: #d4d4d8;
 	--muted: #71717a;
 	--accent: #00e87b;
+	--accent-hover: #00ff88;
 	--accent2: #00c9ff;
 	--danger: #ff5c5c;
 	--radius: 8px;
+	--title-text: #ffffff;
+	--btn-on-accent: #000000;
+	--toggle-active: #000000;
 }
 
 @media (prefers-color-scheme: light) {
@@ -26,12 +30,12 @@
 		--text: #1a1a1a;
 		--muted: #808080;
 		--accent: #00b366;
+		--accent-hover: #00cc73;
 		--accent2: #0099cc;
 		--danger: #cc3333;
-	}
-
-	.header h1 {
-		color: #1a1a1a;
+		--title-text: #000000;
+		--btn-on-accent: #ffffff;
+		--toggle-active: #ffffff;
 	}
 }
 
@@ -58,11 +62,12 @@ body {
 .header h1 {
 	font-size: 1.35rem;
 	font-weight: 700;
-	color: #fff;
+	color: var(--title-text);
 }
 
 .header h1 span {
 	color: var(--accent);
+	font-weight: 700;
 }
 
 .header .subtitle {
@@ -201,7 +206,7 @@ body {
 	flex: 1;
 	font-size: 0.88rem;
 	font-weight: 600;
-	color: #fff;
+	color: var(--text);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -608,12 +613,12 @@ input[type="checkbox"] {
 
 .btn-primary {
 	background: var(--accent);
-	color: #0e0e16;
+	color: var(--btn-on-accent);
 	width: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {
-	background: #00ff88;
+	background: var(--accent-hover);
 }
 
 .btn-secondary {
@@ -694,18 +699,52 @@ input[type="checkbox"] {
 	font-size: 0.78rem;
 	line-height: 1.5;
 	color: var(--muted);
+	user-select: text;
+	cursor: text;
 }
 
 .log-box div {
 	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.log-box .log-entry {
+	margin-bottom: 2px;
+}
+
+.log-box .log-timestamp {
+	color: var(--muted);
+	opacity: 0.6;
+	font-size: 0.72rem;
+	user-select: text;
+}
+
+.log-box .log-message {
+	user-select: text;
 }
 
 .log-box .success {
 	color: var(--accent);
 }
 
+.log-box .success .log-message {
+	color: var(--accent);
+}
+
 .log-box .error {
 	color: var(--danger);
+}
+
+.log-box .error .log-message {
+	color: var(--danger);
+}
+
+.log-box .warning {
+	color: #ff9800;
+}
+
+.log-box .warning .log-message {
+	color: #ff9800;
 }
 
 /* ── Results ────────────────────────────────────────── */
@@ -901,7 +940,7 @@ input[type="checkbox"] {
 
 /* left = active by default */
 .raw-js-label-left {
-	color: #0e0e16;
+	color: var(--toggle-active);
 	font-weight: 600;
 }
 
@@ -919,7 +958,7 @@ input[type="checkbox"] {
 }
 
 .raw-js-toggle[aria-pressed="true"] .raw-js-label-right {
-	color: #0e0e16;
+	color: var(--toggle-active);
 	font-weight: 600;
 }
 

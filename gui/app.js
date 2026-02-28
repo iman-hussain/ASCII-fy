@@ -1,6 +1,6 @@
 import { dom } from './js/dom.js';
 import { state, resetState, setState } from './js/state.js';
-import { formatBytes, appendLog } from './js/utils.js';
+import { formatBytes, appendLog, interceptConsole } from './js/utils.js';
 import { startConvert, stopConversion, isStandalone } from './js/api.js';
 import {
 	updateEstimate, updateResolution, makeEditable, updateModeFields,
@@ -29,16 +29,21 @@ export async function probeFile(pathOrFile) {
 			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
 			let timedOut = false;
 
-			// Add timeout for probe (60 seconds to allow FFmpeg to download from CDN)
+			// Add timeout for probe (90 seconds to allow FFmpeg to download from CDN)
 			const timeout = setTimeout(() => {
 				timedOut = true;
-				appendLog("Video probe timed out. Check the browser console for errors.", "error");
+				appendLog("Video probe timed out after 90 seconds.", "error");
+				appendLog("This usually means FFmpeg failed to load from CDN.", "error");
+				appendLog("Check the log area above for detailed error messages.", "error");
+				if (typeof SharedArrayBuffer === 'undefined') {
+					appendLog("⚠️ SharedArrayBuffer is not available. Reload the page and wait for the service worker to activate.", "error");
+				}
 				dom.logArea.classList.add('active');
 				setState('videoMeta', null);
 				dom.convertBtn.disabled = true;
 				worker.terminate();
 				resolve(false);
-			}, 60000);
+			}, 90000);
 
 			worker.onerror = (err) => {
 				if (!timedOut) {
@@ -1067,3 +1072,7 @@ dom.undoBtn.addEventListener('click', () => {
 	if (state.lastConvertResult) showResults(state.lastConvertResult);
 	dom.undoBtn.disabled = state.gifHistory.length === 0;
 });
+
+// Initialize console interception to show all logs in GUI
+interceptConsole();
+appendLog('Console logging initialized. All browser console output will appear here.', 'info');
