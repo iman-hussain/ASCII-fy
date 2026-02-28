@@ -3,3 +3,4 @@ models/
 input/
 output/
 *.gif
+test_output.txt
