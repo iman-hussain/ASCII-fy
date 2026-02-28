@@ -79,13 +79,13 @@ export async function probeFile(pathOrFile) {
 				if (timedOut) return;
 
 				const { type, info, error, level, message } = e.data;
-				
+
 				// Handle worker console logs
 				if (type === 'LOG') {
 					appendLog(message, level || 'info');
 					return;
 				}
-				
+
 				clearTimeout(timeout);
 
 				if (type === 'PROBE_SUCCESS') {
