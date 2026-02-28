@@ -28,7 +28,7 @@ export async function probeFile(pathOrFile) {
 		return new Promise((resolve) => {
 			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
 			let timedOut = false;
-			
+
 			// Add timeout for probe (30 seconds)
 			const timeout = setTimeout(() => {
 				timedOut = true;
@@ -39,7 +39,7 @@ export async function probeFile(pathOrFile) {
 				worker.terminate();
 				resolve(false);
 			}, 30000);
-			
+
 			worker.onerror = (err) => {
 				if (!timedOut) {
 					clearTimeout(timeout);
@@ -51,11 +51,11 @@ export async function probeFile(pathOrFile) {
 					resolve(false);
 				}
 			};
-			
+
 			worker.onmessage = (e) => {
 				if (timedOut) return;
 				clearTimeout(timeout);
-				
+
 				const { type, info, error } = e.data;
 				if (type === 'PROBE_SUCCESS') {
 					appendLog("Video loaded successfully!", "success");
@@ -78,7 +78,7 @@ export async function probeFile(pathOrFile) {
 					resolve(false);
 				}
 			};
-			
+
 			appendLog("Loading video metadata...", "info");
 			dom.logArea.classList.add('active');
 			worker.postMessage({ type: 'PROBE', payload: { file: pathOrFile } });
