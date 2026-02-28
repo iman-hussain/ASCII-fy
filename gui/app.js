@@ -611,20 +611,11 @@ function startRecording() {
 		dom.previewVideo.setAttribute('controls', '');
 
 		try {
-			const upRes = await fetch('/api/upload', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/octet-stream',
-					'X-Filename': encodeURIComponent(filename),
-				},
-				body: blob,
-			});
-			const upData = await upRes.json();
-			if (upData.ok) {
-				// Hand off to normal file pipeline
+			if (isStandalone()) {
+				// Standalone mode: use blob URL directly, no server upload
 				const blobUrl = URL.createObjectURL(blob);
 				setState('blobUrl', blobUrl);
-				setState('selectedPath', upData.resolvedPath);
+				setState('rawFile', new File([blob], filename, { type: blob.type }));
 				setState('videoFileSize', blob.size);
 
 				showFileSelected(filename);
@@ -634,10 +625,36 @@ function startRecording() {
 				dom.previewVideo.load();
 				dom.previewVideo.play().catch(() => { });
 
-				await probeFile(upData.resolvedPath);
+				await probeFile(state.rawFile);
 				dom.webcamBar.classList.add('hidden');
 			} else {
-				dom.recordStatus.textContent = 'Upload failed: ' + (upData.error || 'unknown');
+				const upRes = await fetch('/api/upload', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/octet-stream',
+						'X-Filename': encodeURIComponent(filename),
+					},
+					body: blob,
+				});
+				const upData = await upRes.json();
+				if (upData.ok) {
+					const blobUrl = URL.createObjectURL(blob);
+					setState('blobUrl', blobUrl);
+					setState('selectedPath', upData.resolvedPath);
+					setState('videoFileSize', blob.size);
+
+					showFileSelected(filename);
+					dom.previewVideo.src = blobUrl;
+					dom.previewVideoContainer.classList.remove('hidden');
+					dom.previewVideo.classList.remove('hidden');
+					dom.previewVideo.load();
+					dom.previewVideo.play().catch(() => { });
+
+					await probeFile(upData.resolvedPath);
+					dom.webcamBar.classList.add('hidden');
+				} else {
+					dom.recordStatus.textContent = 'Upload failed: ' + (upData.error || 'unknown');
+				}
 			}
 		} catch (err) {
 			dom.recordStatus.textContent = 'Upload error: ' + err.message;
@@ -724,7 +741,10 @@ function stopWebcam() {
 // Load input files
 (async function loadFiles() {
 	try {
-		if (!isStandalone()) {
+		if (isStandalone()) {
+			// Hide the server-only "pick from input/" dropdown
+			dom.inputSelect.closest('div').style.display = 'none';
+		} else {
 			const res = await fetch('/api/files');
 			const data = await res.json();
 			if (data.ok && data.files.length) {

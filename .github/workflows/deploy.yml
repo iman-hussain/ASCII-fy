@@ -32,6 +32,9 @@ jobs:
             cp CNAME deploy/
           fi
 
+          # Remove server-only files not needed for static hosting
+          rm -f deploy/server.js
+
           # Since the GUI accesses WASM files, we need to make sure the paths
           # are correct. In the web-converter.js, we pull from UNPKG so local
           # paths are not strictly needed, but `coi-serviceworker.js` needs to be in root.
