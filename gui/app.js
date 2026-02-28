@@ -14,6 +14,14 @@ import {
 
 /* ── Core File Initialization ────────────────────────────────────────── */
 export async function probeFile(pathOrFile) {
+	// Guard against null or undefined input
+	if (!pathOrFile) {
+		appendLog('Error: Invalid file or path provided to probeFile', 'error');
+		setState('videoMeta', null);
+		dom.convertBtn.disabled = true;
+		return false;
+	}
+
 	if (isStandalone() && pathOrFile instanceof File) {
 		// --- WASM Probe ---
 		// In standalone mode, we must have the raw File object since we can't upload to a server
@@ -45,6 +53,12 @@ export async function probeFile(pathOrFile) {
 
 	} else {
 		// --- Local Server Probe ---
+		if (typeof pathOrFile !== 'string' && !(pathOrFile instanceof File)) {
+			appendLog('Error: pathOrFile must be a string or File object', 'error');
+			setState('videoMeta', null);
+			dom.convertBtn.disabled = true;
+			return false;
+		}
 		const path = typeof pathOrFile === 'string' ? pathOrFile : pathOrFile.name;
 		try {
 			const res = await fetch('/api/probe', {
@@ -94,6 +108,13 @@ async function selectFromDropdown(name) {
 }
 
 async function handleFile(file, forceUpload) {
+	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+	if (file.size > MAX_FILE_SIZE) {
+		appendLog(`File too large. Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB (file is ${(file.size / 1024 / 1024).toFixed(1)}MB)`, 'error');
+		dom.logArea.classList.add('active');
+		return;
+	}
+
 	resetState();
 	setState('videoFileSize', file.size);
 	setState('rawFile', file); // Store for WASM usage
@@ -130,11 +151,14 @@ async function handleFile(file, forceUpload) {
 				body: file,
 			});
 			const upData = await upRes.json();
-			if (upData.ok) {
+			if (upData.ok && upData.resolvedPath) {
 				setState('selectedPath', upData.resolvedPath);
 				await probeFile(state.selectedPath);
-			} else {
+			} else if (!upData.ok) {
 				appendLog('Upload failed: ' + (upData.error || 'Unknown error'), 'error');
+				dom.logArea.classList.add('active');
+			} else {
+				appendLog('Upload error: server did not return file path', 'error');
 				dom.logArea.classList.add('active');
 			}
 		} catch (err) {
@@ -591,6 +615,22 @@ function startRecording() {
 	mr.onstop = async () => {
 		const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
 		const blob = new Blob(chunks, { type: mr.mimeType || 'video/webm' });
+		
+		// Validate recording file size
+		const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+		if (blob.size > MAX_FILE_SIZE) {
+			appendLog(`Recording too large (${(blob.size / 1024 / 1024).toFixed(1)}MB). Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`, 'error');
+			dom.logArea.classList.add('active');
+			dom.recordStatus.textContent = 'Recording too large';
+			// Stop webcam tracks and cleanup
+			if (state.webcamStream) {
+				state.webcamStream.getTracks().forEach(t => t.stop());
+				setState('webcamStream', null);
+			}
+			stopLiveAscii();
+			return;
+		}
+		
 		// Filename: YYMMDDHHMMSS.webm
 		const now = new Date();
 		const pad = (n) => String(n).padStart(2, '0');
@@ -639,7 +679,7 @@ function startRecording() {
 					body: blob,
 				});
 				const upData = await upRes.json();
-				if (upData.ok) {
+				if (upData.ok && upData.resolvedPath) {
 					const blobUrl = URL.createObjectURL(blob);
 					setState('blobUrl', blobUrl);
 					setState('selectedPath', upData.resolvedPath);
@@ -654,8 +694,10 @@ function startRecording() {
 
 					await probeFile(upData.resolvedPath);
 					dom.webcamBar.classList.add('hidden');
-				} else {
+				} else if (!upData.ok) {
 					dom.recordStatus.textContent = 'Upload failed: ' + (upData.error || 'unknown');
+				} else {
+					dom.recordStatus.textContent = 'Upload error: server did not return file path';
 				}
 			}
 		} catch (err) {
@@ -739,6 +781,16 @@ function stopWebcam() {
 }
 
 /* ── DOM Init Logic ────────────────────────────────────────── */
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+	if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+		state.mediaRecorder.stop();
+	}
+	if (state.webcamStream) {
+		state.webcamStream.getTracks().forEach(t => t.stop());
+	}
+});
 
 // Load input files
 (async function loadFiles() {

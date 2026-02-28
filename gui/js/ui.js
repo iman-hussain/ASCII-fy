@@ -25,12 +25,15 @@ export function estimateBundleBase({ w, h, frames, mode, depth = 16, qStep = 24,
 }
 
 export function updateResolution() {
+	if (!dom.widthVal || !dom.widthSlider || !dom.heightVal || !dom.heightSlider) return;
 	dom.widthVal.textContent = dom.widthSlider.value;
 	dom.heightVal.textContent = dom.heightSlider.value;
 	updateEstimate();
 }
 
 export function updateEstimate() {
+	if (!dom.widthSlider || !dom.heightSlider || !dom.fpsSlider || !dom.modeSelect) return;
+	
 	const w = parseInt(dom.widthSlider.value);
 	const h = parseInt(dom.heightSlider.value);
 	const fps = parseInt(dom.fpsSlider.value);
@@ -41,16 +44,16 @@ export function updateEstimate() {
 
 	// Default to a typical 10s video if no meta is loaded so that sliders update instantly anyway
 	const dur = state.videoMeta ? (state.videoMeta.duration || 10) : 10;
-	const trimS = parseFloat(dom.trimStartInp.value) || 0;
-	const trimE = parseFloat(dom.trimEndInp.value) || dur;
+	const trimS = parseFloat(dom.trimStartInp?.value) || 0;
+	const trimE = parseFloat(dom.trimEndInp?.value) || dur;
 	const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
 	const frames = Math.max(1, Math.round(effDur * fps));
 
 	const base = estimateBundleBase({ w, h, frames, mode, depth, qStep, detail });
 	const est = Math.round(base * state.estimateScale);
 
-	dom.estimateArea.classList.remove('hidden');
-	dom.estimateVal.textContent = '~' + formatBytes(est);
+	if (dom.estimateArea) dom.estimateArea.classList.remove('hidden');
+	if (dom.estimateVal) dom.estimateVal.textContent = '~' + formatBytes(est);
 	// GIF is pixel-based (CELL_W=6, CELL_H=8 per char) and uncompressed frames —
 	// typically ~4-6x larger than the binary bundle. Use 5x as a conservative estimate.
 	const gifEst = est * 5;
@@ -93,6 +96,8 @@ export function makeEditable(spanEl, sliderEl, opts = {}) {
 }
 
 export function updateVideoFilters() {
+	if (!dom.previewVideo || !dom.previewGif) return;
+	
 	const live = dom.livePreview?.checked ?? true;
 	if (!live) {
 		dom.previewVideo.style.filter = '';

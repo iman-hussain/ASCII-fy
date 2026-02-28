@@ -15,6 +15,11 @@ function initWasmWorker() {
 	if (!wasmWorker) {
 		wasmWorker = new Worker('/js/wasm/worker.js', { type: 'module' });
 		wasmWorker.onmessage = handleWasmMessage;
+		wasmWorker.onerror = (e) => {
+			console.error('[ASCII-fy] Worker error:', e.message, e.filename, e.lineno);
+			appendLog('Worker error: ' + (e.message || 'Unknown error'), 'error');
+			endConversionUI();
+		};
 	}
 	return wasmWorker;
 }
@@ -23,7 +28,9 @@ export function isStandalone() {
 	// If we're on localhost but NOT port 3000 (e.g. npx serve), or on GitHub Pages, we are standalone.
 	// For this specific setup, we'll cleanly check if the backend API exists.
 	// But as a rapid check:
-	return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+	const standalone = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+	console.log(`[ASCII-fy] Standalone mode: ${standalone} (hostname: ${window.location.hostname})`);
+	return standalone;
 }
 
 export async function stopConversion() {
@@ -227,6 +234,11 @@ function handleWasmMessage(e) {
 // --- Local Node.js API Event Handlers ---
 if (!isStandalone()) {
 	evtSource = new EventSource('/events');
+
+	evtSource.onerror = (e) => {
+		console.error('[ASCII-fy] EventSource error:', e);
+		appendLog('Connection lost. Check that conversion started.', 'error');
+	};
 
 	evtSource.addEventListener('progress', (e) => {
 		const d = JSON.parse(e.data);

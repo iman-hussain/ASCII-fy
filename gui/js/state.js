@@ -38,17 +38,29 @@ export function resetState() {
 	state.videoMeta = null;
 	state.videoFileSize = null;
 	state.convertedGifUrl = null;
-	state.convertedGifBlob = null;
 	state.lastConvertResult = null;
 	state.lastConvertOptions = null;
 	state.estimateScale = 1;
 	// Revoke previous URLs
-	state.gifHistory.forEach(h => URL.revokeObjectURL(h.blobUrl));
+	state.gifHistory.forEach(h => {
+		if (h.blobUrl) URL.revokeObjectURL(h.blobUrl);
+	});
 	state.gifHistory.length = 0;
 	if (state.blobUrl) { URL.revokeObjectURL(state.blobUrl); state.blobUrl = null; }
-	state.framePreviewHtml = null;
+	// Revoke converted blob URLs
+	if (state.convertedGifBlob instanceof Blob) {
+		try { URL.revokeObjectURL(URL.createObjectURL(state.convertedGifBlob)); } catch { }
+	}
+	if (state.convertedBundleUrl && state.convertedBundleUrl.startsWith('blob:')) {
+		URL.revokeObjectURL(state.convertedBundleUrl);
+	}
+	if (state.convertedBundleJsUrl && state.convertedBundleJsUrl.startsWith('blob:')) {
+		URL.revokeObjectURL(state.convertedBundleJsUrl);
+	}
+	state.convertedGifBlob = null;
 	state.convertedBundleUrl = null;
 	state.convertedBundleJsUrl = null;
+	state.framePreviewHtml = null;
 	state.bundleTextCache = null;
 	state.isCropping = false;
 	state.dragContext = null;
