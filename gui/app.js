@@ -39,6 +39,9 @@ export async function probeFile(pathOrFile) {
 				worker.terminate();
 				resolve(false);
 			}, 60000);
+			
+			worker.onerror = (err) => {
+				if (!timedOut) {
 					clearTimeout(timeout);
 					appendLog("Worker error: " + (err.message || 'Unknown error loading video processor'), "error");
 					dom.logArea.classList.add('active');
@@ -826,8 +829,16 @@ window.addEventListener('beforeunload', () => {
 (async function loadFiles() {
 	try {
 		if (isStandalone()) {
-			// Hide the server-only "pick from input/" dropdown
-			dom.inputSelect.closest('div').style.display = 'none';
+			// Hide the server-only "pick from input/" dropdown and the "or" divider
+			const selectContainer = dom.inputSelect.closest('div');
+			if (selectContainer) {
+				selectContainer.style.display = 'none';
+				// Also hide the "— or —" text that follows
+				const nextSibling = selectContainer.nextElementSibling;
+				if (nextSibling && nextSibling.textContent.includes('—')) {
+					nextSibling.style.display = 'none';
+				}
+			}
 		} else {
 			const res = await fetch('/api/files');
 			const data = await res.json();
