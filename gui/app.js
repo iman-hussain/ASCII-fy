@@ -304,9 +304,21 @@ export function updateTabSizes() {
 export function showResults(d) {
 	dom.resultsArea.classList.add('active');
 	dom.resultActions.innerHTML = '';
-	if (d.htmlPath) addAction('Open Player', d.htmlPath);
-	if (d.gifPath) addAction('Open preview.gif', d.gifPath);
-	if (d.outputDir) addAction('Open Folder', d.outputDir);
+
+	if (isStandalone()) {
+		// Web Mode actions
+		if (d.gifUrl && d.gifBlob) {
+			addDownloadAction('Download GIF', d.gifBlob, 'ascii-fi.gif');
+		} else if (d.gifUrl) {
+			addDownloadAction('Download GIF', d.gifUrl, 'ascii-fi.gif');
+		}
+		// In the future: addDownloadAction('Download Bundle', d.bundleBlob, 'ascii-fi.zip');
+	} else {
+		// Desktop Node.js actions
+		if (d.htmlPath) addAction('Open Player', d.htmlPath);
+		if (d.gifPath) addAction('Open preview.gif', d.gifPath);
+		if (d.outputDir) addAction('Open Folder', d.outputDir);
+	}
 	if (d.bundleUrl) {
 		const copyBtn = document.createElement('button');
 		copyBtn.className = 'btn btn-secondary';
@@ -346,6 +358,16 @@ function addAction(label, path) {
 		});
 	};
 	dom.resultActions.appendChild(btn);
+}
+
+function addDownloadAction(label, url, filename) {
+	const a = document.createElement('a');
+	a.className = 'btn btn-secondary';
+	a.textContent = label;
+	a.href = url;
+	a.download = filename;
+	a.style.textDecoration = 'none';
+	dom.resultActions.appendChild(a);
 }
 
 /* ── Live ASCII full-area preview ──────────────────────────── */
