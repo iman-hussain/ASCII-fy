@@ -27,9 +27,38 @@ export async function probeFile(pathOrFile) {
 		// In standalone mode, we must have the raw File object since we can't upload to a server
 		return new Promise((resolve) => {
 			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
+			let timedOut = false;
+			
+			// Add timeout for probe (30 seconds)
+			const timeout = setTimeout(() => {
+				timedOut = true;
+				appendLog("Video probe timed out. Please try again or use a smaller file.", "error");
+				dom.logArea.classList.add('active');
+				setState('videoMeta', null);
+				dom.convertBtn.disabled = true;
+				worker.terminate();
+				resolve(false);
+			}, 30000);
+			
+			worker.onerror = (err) => {
+				if (!timedOut) {
+					clearTimeout(timeout);
+					appendLog("Worker error: " + (err.message || 'Unknown error loading video processor'), "error");
+					dom.logArea.classList.add('active');
+					setState('videoMeta', null);
+					dom.convertBtn.disabled = true;
+					worker.terminate();
+					resolve(false);
+				}
+			};
+			
 			worker.onmessage = (e) => {
+				if (timedOut) return;
+				clearTimeout(timeout);
+				
 				const { type, info, error } = e.data;
 				if (type === 'PROBE_SUCCESS') {
+					appendLog("Video loaded successfully!", "success");
 					setState('videoMeta', info || null);
 					setState('selectedPath', pathOrFile.name);
 					setState('videoFileSize', pathOrFile.size);
@@ -41,13 +70,17 @@ export async function probeFile(pathOrFile) {
 					resolve(true);
 				}
 				if (type === 'PROBE_ERROR') {
-					appendLog("WASM Probe failed: " + error, "error");
+					appendLog("Failed to load video: " + error, "error");
+					dom.logArea.classList.add('active');
 					setState('videoMeta', null);
 					dom.convertBtn.disabled = true;
 					worker.terminate();
 					resolve(false);
 				}
 			};
+			
+			appendLog("Loading video metadata...", "info");
+			dom.logArea.classList.add('active');
 			worker.postMessage({ type: 'PROBE', payload: { file: pathOrFile } });
 		});
 

@@ -18,10 +18,13 @@ self.onmessage = async (e) => {
 
 	if (type === 'PROBE') {
 		try {
+			console.log('[Worker] Starting video probe...');
 			const info = await probeVideoWeb(payload.file);
+			console.log('[Worker] Probe successful:', info);
 			self.postMessage({ type: 'PROBE_SUCCESS', info });
 		} catch (err) {
-			self.postMessage({ type: 'PROBE_ERROR', error: err.message });
+			console.error('[Worker] Probe failed:', err);
+			self.postMessage({ type: 'PROBE_ERROR', error: err.message || String(err) });
 		}
 	}
 
