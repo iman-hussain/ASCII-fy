@@ -29,19 +29,16 @@ export async function probeFile(pathOrFile) {
 			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
 			let timedOut = false;
 
-			// Add timeout for probe (30 seconds)
+			// Add timeout for probe (60 seconds to allow FFmpeg to download from CDN)
 			const timeout = setTimeout(() => {
 				timedOut = true;
-				appendLog("Video probe timed out. Please try again or use a smaller file.", "error");
+				appendLog("Video probe timed out. Check the browser console for errors.", "error");
 				dom.logArea.classList.add('active');
 				setState('videoMeta', null);
 				dom.convertBtn.disabled = true;
 				worker.terminate();
 				resolve(false);
-			}, 30000);
-
-			worker.onerror = (err) => {
-				if (!timedOut) {
+			}, 60000);
 					clearTimeout(timeout);
 					appendLog("Worker error: " + (err.message || 'Unknown error loading video processor'), "error");
 					dom.logArea.classList.add('active');

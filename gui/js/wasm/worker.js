@@ -5,19 +5,50 @@
  * in a separate thread so the GUI doesn't freeze during processing.
  */
 
-// Import the converter logic built for the web
-// (Assuming we bundle this or use ES modules in the worker)
-import { convertWeb, probeVideoWeb } from '../../../lib/web-converter.js';
-import { generateBundle } from '../../../lib/bundler.js';
-import { createAsciiGifWriter } from '../../../lib/gif.js';
+console.log('[Worker] Worker script loaded, preparing to import modules...');
+
+// Lazy-load modules to catch import errors
+let convertWeb, probeVideoWeb, generateBundle, createAsciiGifWriter;
+let modulesLoaded = false;
+
+async function loadModules() {
+	if (modulesLoaded) return;
+	try {
+		console.log('[Worker] Importing web-converter...');
+		const webConverter = await import('../../../lib/web-converter.js');
+		convertWeb = webConverter.convertWeb;
+		probeVideoWeb = webConverter.probeVideoWeb;
+		
+		console.log('[Worker] Importing bundler...');
+		const bundler = await import('../../../lib/bundler.js');
+		generateBundle = bundler.generateBundle;
+		
+		console.log('[Worker] Importing gif...');
+		const gif = await import('../../../lib/gif.js');
+		createAsciiGifWriter = gif.createAsciiGifWriter;
+		
+		modulesLoaded = true;
+		console.log('[Worker] All modules loaded successfully');
+	} catch (err) {
+		console.error('[Worker] Failed to load modules:', err);
+		throw new Error('Failed to load worker modules: ' + err.message);
+	}
+}
 
 let abortController = null;
+
+self.onerror = (err) => {
+	console.error('[Worker] Global error:', err);
+	self.postMessage({ type: 'PROBE_ERROR', error: 'Worker initialization failed: ' + (err.message || String(err)) });
+};
 
 self.onmessage = async (e) => {
 	const { type, payload } = e.data;
 
 	if (type === 'PROBE') {
 		try {
+			console.log('[Worker] Received PROBE message, loading modules...');
+			await loadModules();
 			console.log('[Worker] Starting video probe...');
 			const info = await probeVideoWeb(payload.file);
 			console.log('[Worker] Probe successful:', info);
@@ -31,6 +62,9 @@ self.onmessage = async (e) => {
 	if (type === 'CONVERT') {
 		abortController = new AbortController();
 		try {
+			console.log('[Worker] Received CONVERT message, loading modules...');
+			await loadModules();
+			
 			// Proxy the onFrame callback to send progress back to main thread
 			const options = {
 				...payload.options,
@@ -83,6 +117,7 @@ self.onmessage = async (e) => {
 
 			self.postMessage({ type: 'CONVERT_SUCCESS', result });
 		} catch (err) {
+			console.error('[Worker] Convert error:', err);
 			if (err.message === 'Aborted') {
 				self.postMessage({ type: 'CONVERT_ABORTED' });
 			} else {
