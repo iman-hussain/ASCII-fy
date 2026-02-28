@@ -7,8 +7,30 @@ import { showResults, updateTabSizes } from '../app.js';
 
 export const evtSource = new EventSource('/events');
 
+// --- WASM Worker Setup ---
+let wasmWorker = null;
+
+function initWasmWorker() {
+	if (!wasmWorker) {
+		wasmWorker = new Worker('/js/wasm/worker.js', { type: 'module' });
+		wasmWorker.onmessage = handleWasmMessage;
+	}
+	return wasmWorker;
+}
+
+export function isStandalone() {
+	// If we're on localhost but NOT port 3000 (e.g. npx serve), or on GitHub Pages, we are standalone.
+	// For this specific setup, we'll cleanly check if the backend API exists.
+	// But as a rapid check:
+	return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+}
+
 export async function stopConversion() {
-	try { await fetch('/api/abort', { method: 'POST' }); } catch { }
+	if (isStandalone()) {
+		if (wasmWorker) wasmWorker.postMessage({ type: 'ABORT' });
+	} else {
+		try { await fetch('/api/abort', { method: 'POST' }); } catch { }
+	}
 	dom.stopBtn.disabled = true;
 	dom.stopBtn.textContent = 'Stopping…';
 }
@@ -73,21 +95,106 @@ export async function startConvert() {
 		};
 	}
 
-	try {
-		await fetch('/api/convert', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(opts),
+	if (isStandalone()) {
+		// --- WASM Mode ---
+		appendLog("Initializing WebAssembly engine...", "info");
+		const worker = initWasmWorker();
+
+		// The web converter needs the actual File object, which we kept in state.
+		// If we don't have it (e.g. dragged file isn't stored properly), this will fail.
+		// *We must ensure `app.js` stores the raw File object in state.*
+		if (!state.rawFile) {
+			appendLog("Standalone mode requires dragging/dropping a local file.", "error");
+			endConversionUI();
+			return;
+		}
+
+		worker.postMessage({
+			type: 'CONVERT',
+			payload: { file: state.rawFile, options: opts }
 		});
-	} catch (err) {
-		appendLog('Fetch error: ' + err.message, 'error');
-		setState('isConverting', false);
-		setState('conversionStartTime', null);
-		dom.convertBtn.style.display = '';
-		dom.stopBtn.style.display = 'none';
-		dom.convertBtn.disabled = false;
+
+	} else {
+		// --- Local API Mode ---
+		try {
+			await fetch('/api/convert', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(opts),
+			});
+		} catch (err) {
+			appendLog('Fetch error: ' + err.message, 'error');
+			endConversionUI();
+		}
 	}
 }
+
+function endConversionUI() {
+	setState('isConverting', false);
+	setState('conversionStartTime', null);
+	dom.convertBtn.style.display = '';
+	dom.stopBtn.style.display = 'none';
+	dom.convertBtn.disabled = false;
+}
+
+// --- WASM Worker Message Handler ---
+function handleWasmMessage(e) {
+	const { type, index, chars, result, error, info } = e.data;
+
+	if (type === 'PROBE_SUCCESS') {
+		// Handled by promises in probeVideo hybrid wrapper
+		const evt = new CustomEvent('wasm_probe', { detail: { ok: true, meta: info } });
+		window.dispatchEvent(evt);
+	}
+	if (type === 'PROBE_ERROR') {
+		const evt = new CustomEvent('wasm_probe', { detail: { ok: false, error } });
+		window.dispatchEvent(evt);
+	}
+
+	if (type === 'PROGRESS') {
+		const totalFrames = state.videoMeta?.frames || (state.videoMeta?.duration * state.lastConvertOptions?.fps) || 100;
+		const frame = index + 1;
+		const percent = Math.min(100, Math.round((frame / totalFrames) * 100));
+
+		dom.progressFill.style.width = percent + '%';
+		let label = 'Frame ' + frame + ' (~' + percent + '%)';
+
+		if (state.conversionStartTime && frame > 1) {
+			const elapsed = (Date.now() - state.conversionStartTime) / 1000;
+			const perFrame = elapsed / (frame - 1);
+			const remaining = Math.max(0, (totalFrames - frame) * perFrame);
+			if (remaining < 60) {
+				label += ' — ~' + Math.ceil(remaining) + 's left';
+			} else {
+				const m = Math.floor(remaining / 60);
+				const s = Math.ceil(remaining % 60);
+				label += ' — ~' + m + 'm ' + s + 's left';
+			}
+		}
+		dom.progressLabel.textContent = label;
+	}
+
+	if (type === 'CONVERT_SUCCESS') {
+		// result contains { frames, fps, duration, width, height }
+		appendLog('WASM conversion finished! Note: Client-side bundling not yet implemented.', 'info');
+		endConversionUI();
+	}
+
+	if (type === 'CONVERT_ERROR') {
+		appendLog('WASM Error: ' + error, 'error');
+		dom.progressFill.style.background = 'var(--danger)';
+		dom.progressLabel.textContent = 'Conversion failed';
+		setTimeout(() => { dom.progressFill.style.background = ''; }, 4000);
+		endConversionUI();
+	}
+
+	if (type === 'CONVERT_ABORTED') {
+		appendLog('Conversion aborted.', 'error');
+		endConversionUI();
+	}
+}
+
+// --- Local Node.js API Event Handlers ---
 
 evtSource.addEventListener('progress', (e) => {
 	const d = JSON.parse(e.data);
@@ -196,9 +303,5 @@ evtSource.addEventListener('done', async (e) => {
 		dom.progressLabel.textContent = 'Conversion failed';
 		setTimeout(() => { dom.progressFill.style.background = ''; }, 4000);
 	}
-	setState('isConverting', false);
-	setState('conversionStartTime', null);
-	dom.convertBtn.style.display = '';
-	dom.stopBtn.style.display = 'none';
-	dom.convertBtn.disabled = false;
+	endConversionUI();
 });

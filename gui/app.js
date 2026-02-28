@@ -1,7 +1,7 @@
 import { dom } from './js/dom.js';
 import { state, resetState, setState } from './js/state.js';
 import { formatBytes, appendLog } from './js/utils.js';
-import { startConvert, stopConversion } from './js/api.js';
+import { startConvert, stopConversion, isStandalone } from './js/api.js';
 import {
 	updateEstimate, updateResolution, makeEditable, updateModeFields,
 	updateForegroundFields, applyPreviewBg, resetPreviewBg,
@@ -13,28 +13,63 @@ import {
 } from './js/crop-trim.js';
 
 /* ── Core File Initialization ────────────────────────────────────────── */
-export async function probeFile(path) {
-	try {
-		const res = await fetch('/api/probe', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path }),
+export async function probeFile(pathOrFile) {
+	if (isStandalone() && pathOrFile instanceof File) {
+		// --- WASM Probe ---
+		// In standalone mode, we must have the raw File object since we can't upload to a server
+		return new Promise((resolve) => {
+			const worker = new Worker('/js/wasm/worker.js', { type: 'module' });
+			worker.onmessage = (e) => {
+				const { type, info, error } = e.data;
+				if (type === 'PROBE_SUCCESS') {
+					setState('videoMeta', info || null);
+					setState('selectedPath', pathOrFile.name);
+					setState('videoFileSize', pathOrFile.size);
+					clampSlidersToSource();
+					updateInfoBar('original');
+					updateEstimate();
+					dom.convertBtn.disabled = false;
+					worker.terminate();
+					resolve(true);
+				}
+				if (type === 'PROBE_ERROR') {
+					appendLog("WASM Probe failed: " + error, "error");
+					setState('videoMeta', null);
+					dom.convertBtn.disabled = true;
+					worker.terminate();
+					resolve(false);
+				}
+			};
+			worker.postMessage({ type: 'PROBE', payload: { file: pathOrFile } });
 		});
-		const data = await res.json();
-		setState('videoMeta', data.meta || null);
-		if (data.resolvedPath) setState('selectedPath', data.resolvedPath);
-		if (data.fileSize) setState('videoFileSize', data.fileSize);
 
-		if (!data.ok && !data.resolvedPath) {
-			dom.convertBtn.disabled = true;
-			return;
+	} else {
+		// --- Local Server Probe ---
+		const path = typeof pathOrFile === 'string' ? pathOrFile : pathOrFile.name;
+		try {
+			const res = await fetch('/api/probe', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path }),
+			});
+			const data = await res.json();
+			setState('videoMeta', data.meta || null);
+			if (data.resolvedPath) setState('selectedPath', data.resolvedPath);
+			if (data.fileSize) setState('videoFileSize', data.fileSize);
+
+			if (!data.ok && !data.resolvedPath) {
+				dom.convertBtn.disabled = true;
+				return false;
+			}
+			clampSlidersToSource();
+			updateInfoBar('original');
+			updateEstimate();
+			dom.convertBtn.disabled = false;
+			return true;
+		} catch {
+			setState('videoMeta', null);
+			return false;
 		}
-		clampSlidersToSource();
-		updateInfoBar('original');
-		updateEstimate();
-		dom.convertBtn.disabled = false;
-	} catch {
-		setState('videoMeta', null);
 	}
 }
 
@@ -42,9 +77,14 @@ async function selectFromDropdown(name) {
 	resetState();
 	showFileSelected(name);
 	setState('selectedPath', name);
-	await probeFile(name);
 
-	if (!state.selectedPath) return;
+	const resolved = await probeFile(name);
+
+	if (!resolved || !state.selectedPath) {
+		appendLog("Failed to probe file " + name, "error");
+		return;
+	}
+
 	dom.previewVideoContainer.classList.remove('hidden');
 	dom.previewVideo.src = '/api/video?path=' + encodeURIComponent(state.selectedPath);
 	dom.previewVideo.classList.remove('hidden');
@@ -56,6 +96,7 @@ async function selectFromDropdown(name) {
 async function handleFile(file, forceUpload) {
 	resetState();
 	setState('videoFileSize', file.size);
+	setState('rawFile', file); // Store for WASM usage
 	showFileSelected(file.name);
 
 	let blobUrl = URL.createObjectURL(file);
@@ -67,25 +108,16 @@ async function handleFile(file, forceUpload) {
 	dom.previewVideo.play().catch(() => { });
 	dom.dropZone.classList.add('hidden');
 
+	if (isStandalone()) {
+		// In standalone mode, we can only probe via WASM using the raw file.
+		await probeFile(file);
+		return;
+	}
+
 	let resolved = false;
-	if (!forceUpload) try {
-		const probeRes = await fetch('/api/probe', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: file.name }),
-		});
-		const probeData = await probeRes.json();
-		if (probeData.ok && probeData.resolvedPath) {
-			setState('selectedPath', probeData.resolvedPath);
-			setState('videoMeta', probeData.meta || null);
-			if (probeData.fileSize) setState('videoFileSize', probeData.fileSize);
-			clampSlidersToSource();
-			updateInfoBar('original');
-			updateEstimate();
-			dom.convertBtn.disabled = false;
-			resolved = true;
-		}
-	} catch { }
+	if (!forceUpload) {
+		resolved = await probeFile(file.name);
+	}
 
 	if (!resolved) {
 		try {

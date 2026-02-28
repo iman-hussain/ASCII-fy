@@ -1,0 +1,44 @@
+name: Deploy ASCII-fi to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Since we aren't using a bundler (Vite/Webpack), we just need to move
+      # the relevant static files into a deployable directory.
+
+      - name: Prepare Deployment Directory
+        run: |
+          mkdir deploy
+          cp -r gui/* deploy/
+
+          # The WASM worker and UI both rely on shared logic in lib/ and scripts/
+          cp -r lib deploy/lib
+          cp -r scripts deploy/scripts
+
+          # Ensure the CNAME file is copied to the root of the deployed site
+          if [ -f "CNAME" ]; then
+            cp CNAME deploy/
+          fi
+
+          # Since the GUI accesses WASM files, we need to make sure the paths
+          # are correct. In the web-converter.js, we pull from UNPKG so local
+          # paths are not strictly needed, but `coi-serviceworker.js` needs to be in root.
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          force_orphan: true

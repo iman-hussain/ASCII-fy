@@ -4,24 +4,31 @@
 | ------------------------------ | ------------------------ |
 | ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
 
-**ASCII-fi** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint and is optimized for both visual fidelity and storage efficiency. With support for real-time bundle size estimation, automatic vertical video orientation, and high-precision color quantization, ASCII-fi transforms any video into stunning, portable ASCII animations for the web or terminal.
+**ASCII-fi** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint and is optimised for both visual fidelity and storage efficiency. With support for real-time bundle size estimation, automatic vertical video orientation, and high-precision colour quantisation, ASCII-fi transforms any video into stunning, portable ASCII animations for the web or terminal.
 
 It operates seamlessly as a **Standalone Interactive CLI/GUI** and as a **Programmatic NPM Library**, allowing for flexible standalone consumption or direct integrations inside your backend environments.
 
-## Architecture & Efficiency
+---
 
-- **Stream-based processing** – FFmpeg pipes raw frames directly to Node.js; no temporary files are written to disk.
-- **Resolution-safe downscaling** – Input videos (ranging up to 4K natively) are downscaled heavily before processing preventing V8 memory overflows.
-- **Resource Constraints** – By bypassing external file writing and managing delta encoding internally, `ASCII-fi` scales linearly and maintains a highly restricted memory footprint suitable for tiny shared VPS hosting.
-- **Binary payloads** – Output web bundles utilize raw binary serialization and GZIP compression for incredibly minimal file size (often 90% space reduction).
+## ✨ Key Features
+- **Live Webcam Preview**: Full-area ASCII rendering directly from your camera.
+- **Real-time Reactivity**: ASCII output responds instantly to UI sliders (Width, Colour Mode, Brightness, Contrast).
+- **Foreground Isolation**: Toggle ML-powered segmentation (via ONNX) to isolate subjects.
+- **Live Bundle Estimates**: See real-time file size predictions for both `preview.gif` and `bundle.js`.
+- **Raw .js Viewer**: Switch between the live player and the generated source code.
+- **Efficiency**: Stream-based processing handles up to 4K video without disk-swapping or memory overflows.
 
-## Quick Start
+---
 
-Currently, `ASCII-fi` is not distributed on the npm registry. You can install it directly from GitHub or by downloading the repository ZIP.
+## 🚀 Quick Start
 
-### Local CLI & GUI Usage
+### Prerequisites
+- **Node.js >= 18**
+- **FFmpeg** (automatically handled via `ffmpeg-static` bindings)
+- **Modern Terminal**: For optimal CLI playback, use a terminal with full GPU acceleration (e.g., **Windows Terminal**, **macOS Terminal**, or **iTerm2**).
 
-If you want to run the application to convert a video to ASCII natively on your machine:
+### Installation
+Currently, `ASCII-fi` is not distributed on the npm registry. You can install it directly from GitHub:
 
 ```bash
 git clone https://github.com/iman-hussain/ASCII-fy.git
@@ -32,39 +39,32 @@ npm install
 npm link
 ```
 
-### Local Installation (Programmatic API)
+---
 
-To use `ASCII-fi` within your own Node.js projects, you can install it directly via the GitHub repository URL, or by pointing npm to a local folder:
+## 🖥️ GUI Usage
 
-```bash
-npm install github:iman-hussain/ASCII-fy
-# OR
-npm install /path/to/extracted/ASCII-fy/folder
-> Requires Node.js >= 18. FFmpeg bindings are handled automatically via `ffmpeg-static`.
+ASCII-fi ships with an integrated local Web UI enabling real-time tweaks and live previews. **This is the fastest way to get started.**
 
-> [!TIP]
-> **Permission Issues?** If you are running `ASCII-fi` on Linux or via Docker and encounter `EACCES` permission errors when generating animations, ensure your user owns the project root so Node can generate the `output` folder:
-> ```bash
-> sudo chown -R $USER output
-> ```
+1. Navigate to the installation directory.
+2. **Windows**: Run `start.bat`
+3. **macOS/Linux**: Run `./start.sh`
 
 ---
 
 ## 🖥️ CLI Usage
 
-If installed globally (or running locally via `npm start`), you can initiate `ASCII-fi`.
+If installed globally (or running locally via `npm start`), you can initiate `ASCII-fi` via the command line.
 
 ```bash
 # Interactive mode (Prompts you step-by-step for files and settings)
 ASCII-fi
 
-# Fast-CLI mode (Bypasses prompts entirely for rapid executions or cronjobs)
+# Fast-CLI mode (Bypasses prompts entirely for rapid execution)
 ASCII-fi input/dog.mp4 --width 120 --fps 30 --mode truecolor
 ```
 
 ### 🎮 Terminal Playback
-
-Once you have generated an animation (typically saved as `bundle.js`), you can play it natively in your terminal using the standalone `ascii-player.js` utility.
+Once you have generated an animation (typically saved as `bundle.js`), you can play it natively in your terminal:
 
 ```bash
 # Play a bundle in your terminal
@@ -72,59 +72,25 @@ node scripts/ascii-player.js output/dog/bundle.js
 ```
 
 > [!NOTE]
-> **Performance:** For the best experience (smooth 60fps truecolor), we recommend using the modern **Windows Terminal** or a terminal with full GPU acceleration. Choose a small width (e.g., 60-80 columns) for optimal performance.
-
-### Available CLI Flags
-
-| Flag                   | Description                                                                       | Default     |
-| ---------------------- | --------------------------------------------------------------------------------- | ----------- |
-| `<file>`               | The positional argument specifying the video path                                 | -           |
-| `-w, --width <n>`      | Output character width                                                            | 100         |
-| `-f, --fps <n>`        | Output playback frame rate                                                        | 24          |
-| `-m, --mode <mode>`    | Color styling (`truecolor`, `mono`, `palette`, `kmeans`)                          | `truecolor` |
-| `-d, --depth <n>`      | Palette color calculation density (2-64)                                          | 16          |
-| `-p, --palette <name>` | Preset selections (`realistic`, `grayscale`, `sunset`, `ocean`, `neon`, `forest`) | -           |
-| `--fg <hex>`           | Mono mode foreground color                                                        | `#00ff00`   |
-| `--bg <hex\|auto>`     | Mono mode and player background color                                             | `#000000`   |
-| `-g, --char-mode`      | Mode style (`ascii` edge detection or `block` solid colors)                       | `ascii`     |
-| `-s, --start <sec>`    | Video slice starting point (seconds)                                              | -           |
-| `-e, --end <sec>`      | Video slice ending point (seconds)                                                | -           |
-| `--no-gif`             | Skip GIF preview generation                                                       | -           |
-| `--no-open`            | Skip opening the browser/HTML automatically on completion                         | -           |
-
----
-
-## 🌐 GUI Usage
-
-ASCII-fi ships with an integrated local Web UI enabling real-time tweaks via a graphical interface.
-
-1. Navigate to the installation directory.
-2. Windows: Run `start.bat`
-3. macOS/Linux: Run `./start.sh`
-
-The local server boots natively without external dependencies, spinning up a clean viewport. You can live-preview conversions, select foreground isolation (via ONNX ML segmentations), or capture conversions strictly from your WebCam stream.
+> **Performance:** For the best experience (smooth 60fps truecolour), use a terminal with full GPU acceleration. Choose a small width (e.g., 60-80 columns) for optimal performance.
 
 ---
 
 ## 🛠️ Programmatic API
 
-When importing `ascii-fi`, you receive access to the full video generation capabilities without side-effect generating loaders, as well as an inline Terminal Player for CLI dashboards.
+When importing `ascii-fi`, you receive access to the full video generation capabilities and an inline Terminal Player.
 
 ### 1. Generating Bundles
-
-The programmatic interface guarantees memory efficiency and throws standard JavaScript `Error` objects on failure.
-
 ```js
 import { generateBundle } from 'ascii-fi';
 
 try {
   const result = await generateBundle({
-    inputFile: 'input/my-video.webm', // Required
-    outDir: 'output',                 // Optional output directory
-    width: 80,                        // Options map directly to CLI flags
+    inputFile: 'input/my-video.webm',
+    width: 80,
     fps: 24,
     mode: 'truecolor',
-    skipGif: true                     // Generate bundle.js ONLY
+    skipGif: true
   });
 
   console.log('Bundle Saved To:', result.bundlePath);
@@ -134,26 +100,87 @@ try {
 }
 ```
 
-### 2. Terminal Player Integration
+---
 
-The programmatic interface exposes a native `TerminalPlayer` capable of parsing your compressed output payloads (`bundle.js`) directly in Node.js and accurately repainting ASCII frames inside the host terminal natively via precise truecolor ANSI sequence jumping (no terminal history bloat!).
+## 🛠️ Architecture & Efficiency
 
-```js
-import fs from 'node:fs/promises';
-import { TerminalPlayer } from 'ascii-fi';
+- **Stream-based processing** – FFmpeg pipes raw frames directly to Node.js; no temporary files are written to disk.
+- **Resolution-safe downscaling** – Input videos are downscaled before processing to prevent memory overflows.
+- **Resource Constraints** – Maintains a highly restricted memory footprint suitable for tiny shared VPS hosting.
+- **Binary payloads** – Output web bundles utilise raw binary serialisation and GZIP compression for minimal file sizes.
 
-// Intercept your generated JS file from step 1
-const scriptContent = await fs.readFile('output/bundle.js', 'utf8');
-const match = scriptContent.match(/__ASCII_COMPRESSED__="([^"]+)"/);
+---
 
-// Boot player logic
-const player = TerminalPlayer.fromCompressed(match[1]);
+### Available CLI Flags
 
-// Yield controls to Node event loop (non-blocking)
-player.play();
-setTimeout(() => player.stop(), 5000); // Interrupts gracefully
+| Flag                   | Description                                                                       | Default     |
+| ---------------------- | --------------------------------------------------------------------------------- | ----------- |
+| `<file>`               | The positional argument specifying the video path                                 | -           |
+| `-w, --width <n>`      | Output character width                                                            | 100         |
+| `-f, --fps <n>`        | Output playback frame rate                                                        | 24          |
+| `-m, --mode <mode>`    | Colour styling (`truecolor`, `mono`, `palette`, `kmeans`)                         | `truecolor` |
+| `-d, --depth <n>`      | Palette colour calculation density (2-64)                                         | 16          |
+| `-p, --palette <name>` | Preset selections (`realistic`, `grayscale`, `sunset`, `ocean`, `neon`, `forest`) | -           |
+| `--fg <hex>`           | Mono mode foreground colour                                                       | `#00ff00`   |
+| `--bg <hex\|auto>`     | Mono mode and player background colour                                            | `#000000`   |
+| `-g, --char-mode`      | Mode style (`ascii` edge detection or `block` solid colours)                      | `ascii`     |
+| `-s, --start <sec>`    | Video slice starting point (seconds)                                              | -           |
+| `-e, --end <sec>`      | Video slice ending point (seconds)                                                | -           |
+| `--no-gif`             | Skip GIF preview generation                                                       | -           |
+| `--no-open`            | Skip opening the browser/HTML automatically on completion                         | -           |
+
+---
+
+## 🏗️ Architecture & Pipeline
+
+The following diagram illustrates the internal flow from raw video input to the final compressed web bundle.
+
+```mermaid
+graph TD
+    A[Video Input] -->|FFmpeg Spawn| B(Converter)
+    B -->|Stream Raw Frames| C{Render Engine}
+
+    subgraph "Processing Logic"
+    C -->|Subject Isolation| D[ML Segmenter]
+    C -->|Luminance Mapping| E[ASCII/Block Ramps]
+    C -->|Tone Mapping| F[Bright/Contrast]
+    C -->|Compression| G[Delta Encoding]
+    end
+
+    G -->|RLE + JSON| H(Bundler)
+    H -->|GZIP + B64| I[bundle.js]
+    H -->|Palette Maps| J[preview.gif]
+
+    I -->|Native Decompression| K[Web Player]
+    I -->|ANSI Conversion| L[Terminal Player]
 ```
 
-### 3. Standalone Terminal Player
+---
 
-The `scripts/ascii-player.js` script in the root is a standalone, zero-dependency utility that can be shared and used to play any `bundle.js` file generated by `ASCII-fi`. This is ideal for CI/CD environments or sharing animations without requiring the full library.
+## 📁 Project Structure
+
+```text
+ASCII-fi/
+├── gui/                   # Web-based interface source
+│   ├── js/                # Client-side logic (UI, API, State)
+│   ├── server.js          # Node.js backend for GUI and conversion API
+│   ├── index.html         # Main dashboard layout
+│   └── style.css          # Design system and animations
+├── lib/                   # Core conversion library
+│   ├── api.js             # High-level programmatic entry points
+│   ├── bundler.js         # Final payload generation (GZIP, Binary)
+│   ├── converter.js       # FFmpeg orchestration and frame streaming
+│   ├── gif.js             # Palettised GIF generation with transparency
+│   ├── kmeans.js          # Colour quantization logic
+│   ├── player.js          # Shared web-player source template
+│   ├── render.js          # Per-pixel ASCII/Block processing
+│   ├── terminal-player.js # Node-native ANSI playback engine
+│   └── tone.js            # Brightness, Contrast, and Detail filters
+├── scripts/               # Standalone helper utilities
+│   └── ascii-player.js    # Zero-dependency terminal playback script
+├── models/                # ML models for foreground isolation
+├── tests/                 # Integration and performance benchmarks
+├── index.js               # CLI entry point and argument parsing
+├── start.bat / .sh       # Platform-specific GUI launchers
+└── README.md              # Technical documentation
+```
