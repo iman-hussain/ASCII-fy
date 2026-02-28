@@ -8,6 +8,8 @@
 // Import the converter logic built for the web
 // (Assuming we bundle this or use ES modules in the worker)
 import { convertWeb, probeVideoWeb } from '../../../lib/web-converter.js';
+import { generateBundle } from '../../../lib/bundler.js';
+import { createAsciiGifWriter } from '../../../lib/gif.js';
 
 let abortController = null;
 
@@ -37,6 +39,45 @@ self.onmessage = async (e) => {
 			};
 
 			const result = await convertWeb(options);
+
+			self.postMessage({ type: 'STATUS', message: 'Packaging Bundle... Please wait' });
+			const bundleData = await generateBundle({
+				frames: result.frames,
+				width: result.width,
+				height: result.height,
+				fps: result.fps,
+				color: options.color,
+				qStep: options.qStep,
+				render: options.render,
+				outputDir: null // Web mode doesn't write to disk
+			});
+
+			self.postMessage({ type: 'STATUS', message: 'Encoding GIF... Please wait' });
+			const gifWriter = createAsciiGifWriter({
+				width: result.width,
+				height: result.height,
+				fps: result.fps,
+				render: options.render,
+				outputPath: null // Web mode doesn't write to disk
+			});
+			for (const frame of result.frames) {
+				gifWriter.writeFrame(frame);
+			}
+			const gifData = await gifWriter.finalize();
+
+			result.bundle = {
+				bundleJS: bundleData.bundleJS,
+				demoHTML: bundleData.demoHTML,
+				stats: bundleData.stats
+			};
+			if (gifData) {
+				result.gif = {
+					buffer: gifData.buffer,
+					width: gifData.width,
+					height: gifData.height
+				};
+			}
+
 			self.postMessage({ type: 'CONVERT_SUCCESS', result });
 		} catch (err) {
 			if (err.message === 'Aborted') {

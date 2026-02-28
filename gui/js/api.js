@@ -175,9 +175,38 @@ function handleWasmMessage(e) {
 		dom.progressLabel.textContent = label;
 	}
 
+	if (type === 'STATUS') {
+		const { message } = e.data;
+		dom.progressLabel.textContent = message;
+	}
+
 	if (type === 'CONVERT_SUCCESS') {
-		// result contains { frames, fps, duration, width, height }
-		appendLog('WASM conversion finished! Note: Client-side bundling not yet implemented.', 'info');
+		appendLog('WASM conversion finished successfully!', 'success');
+
+		const d = {
+			gifBlob: null,
+			gifUrl: null,
+			bundleJSStr: null,
+			demoHTMLStr: null,
+			bundleBlob: null,
+			bundleUrl: null,
+		};
+
+		if (result.gif && result.gif.buffer) {
+			d.gifBlob = new Blob([result.gif.buffer], { type: 'image/gif' });
+			d.gifUrl = URL.createObjectURL(d.gifBlob);
+		}
+
+		if (result.bundle && result.bundle.demoHTML) {
+			const htmlStr = result.bundle.demoHTML.replace(
+				'<script src="bundle.js"></script>',
+				'<script>\n' + result.bundle.bundleJS + '\n</script>'
+			);
+			d.bundleBlob = new Blob([htmlStr], { type: 'text/html' });
+			d.bundleUrl = URL.createObjectURL(d.bundleBlob);
+		}
+
+		showResults(d);
 		endConversionUI();
 	}
 

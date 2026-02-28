@@ -312,7 +312,9 @@ export function showResults(d) {
 		} else if (d.gifUrl) {
 			addDownloadAction('Download GIF', d.gifUrl, 'ascii-fi.gif');
 		}
-		// In the future: addDownloadAction('Download Bundle', d.bundleBlob, 'ascii-fi.zip');
+		if (d.bundleUrl) {
+			addDownloadAction('Download HTML Bundle', d.bundleUrl, 'ascii-fi.html');
+		}
 	} else {
 		// Desktop Node.js actions
 		if (d.htmlPath) addAction('Open Player', d.htmlPath);
