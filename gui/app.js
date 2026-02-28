@@ -316,14 +316,16 @@ function addAction(label, path) {
 	dom.resultActions.appendChild(btn);
 }
 
-/* ── Live ASCII canvas overlay ───────────────────────────────── */
+/* ── Live ASCII full-area preview ──────────────────────────── */
 
-const LIVE_RAMP = ' .:-=+*#%@';
+const _CHAR_RAMP = ' .:-=+*#%@';
+const _BLOCK_RAMP = ' ░▒▓█';
 
 let _liveRafId = null;
 let _liveCanvas = null;
 let _liveCtx = null;
 let _liveAsciiEl = null;
+let _livePipEl = null;
 
 function startLiveAscii(videoEl, containerEl) {
 	// Hidden capture canvas
@@ -331,33 +333,64 @@ function startLiveAscii(videoEl, containerEl) {
 	_liveCanvas.style.display = 'none';
 	_liveCtx = _liveCanvas.getContext('2d', { willReadFrequently: true });
 
-	// ASCII overlay <pre>
+	// Full-area ASCII <pre>
 	_liveAsciiEl = document.createElement('pre');
-	Object.assign(_liveAsciiEl.style, {
-		position: 'absolute', inset: '0',
-		margin: '0', padding: '4px',
-		fontFamily: "'Cascadia Code','Consolas',monospace",
-		fontSize: '6px', lineHeight: '1',
-		color: '#00e87b', background: 'transparent',
-		pointerEvents: 'none', zIndex: '10',
-		whiteSpace: 'pre', overflow: 'hidden',
-		mixBlendMode: 'normal',
-	});
+	_liveAsciiEl.className = 'live-ascii-pre';
+
+	// PIP webcam mirror
+	_livePipEl = document.createElement('video');
+	_livePipEl.className = 'webcam-pip';
+	_livePipEl.srcObject = videoEl.srcObject;
+	_livePipEl.muted = true;
+	_livePipEl.playsInline = true;
+	_livePipEl.autoplay = true;
+	_livePipEl.play().catch(() => { });
+
+	// Setup container
 	containerEl.style.position = 'relative';
-	containerEl.style.background = '#000';
+	containerEl.style.background = '#0a0a0a';
+	containerEl.style.minHeight = '360px';
 	containerEl.appendChild(_liveCanvas);
 	containerEl.appendChild(_liveAsciiEl);
+	containerEl.appendChild(_livePipEl);
 
-	const COLS = 80;
+	// Hide the main video — the ASCII pre IS the preview now
+	videoEl.style.opacity = '0';
+	videoEl.style.position = 'absolute';
+	videoEl.style.pointerEvents = 'none';
 
-	function drawFrame() {
+	let _lastDrawTime = 0;
+	const TARGET_FPS = 12; // throttle to ~12fps to avoid starving MediaRecorder
+	const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+	function drawFrame(timestamp) {
 		if (!state.webcamStream) return;
 		_liveRafId = requestAnimationFrame(drawFrame);
 		if (videoEl.readyState < 2) return;
 
-		// Sample at COLS wide, preserve aspect
+		// Throttle rendering
+		if (timestamp - _lastDrawTime < FRAME_INTERVAL) return;
+		_lastDrawTime = timestamp;
+
+		// ── Read UI controls ──
+		const COLS = parseInt(dom.widthSlider.value) || 80;
+		const charMode = dom.charMode?.value || 'ascii';
+		const colourMode = dom.modeSelect?.value || 'truecolor';
+		const ramp = charMode === 'block' ? _BLOCK_RAMP : _CHAR_RAMP;
+
+		// Tone adjustments
+		const brightAdj = parseInt(dom.brightSlider?.value) || 0;
+		const contrastAdj = parseInt(dom.contrastSlider?.value) || 0;
+		const bMul = 1 + (brightAdj / 100);
+		const cMul = 1 + (contrastAdj / 100);
+
+		// Mono colours
+		const monoFg = dom.fgInput?.value || '#00ff00';
+
+		// Compute rows preserving aspect ratio
 		const vw = videoEl.videoWidth || 640;
 		const vh = videoEl.videoHeight || 480;
+		// Characters are ~2x taller than wide
 		const ROWS = Math.max(1, Math.round(COLS * (vh / vw) * 0.45));
 		_liveCanvas.width = COLS;
 		_liveCanvas.height = ROWS;
@@ -365,19 +398,56 @@ function startLiveAscii(videoEl, containerEl) {
 
 		let data;
 		try { data = _liveCtx.getImageData(0, 0, COLS, ROWS).data; }
-		catch { return; } // cross-origin guard
+		catch { return; }
 
-		let out = '';
+		// ── Build output ──
+		const useTruecolor = colourMode === 'truecolor' || colourMode === 'palette' || colourMode === 'kmeans';
+		const useGray = colourMode === 'grayscale';
+		let html = '';
+
 		for (let y = 0; y < ROWS; y++) {
 			for (let x = 0; x < COLS; x++) {
 				const i = (y * COLS + x) * 4;
-				const lum = (data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722);
-				const ci = Math.min(LIVE_RAMP.length - 1, Math.floor((lum / 255) * LIVE_RAMP.length));
-				out += LIVE_RAMP[ci];
+				let r = data[i], g = data[i + 1], b = data[i + 2];
+
+				// Apply brightness + contrast
+				r = Math.max(0, Math.min(255, ((r - 128) * cMul + 128) * bMul));
+				g = Math.max(0, Math.min(255, ((g - 128) * cMul + 128) * bMul));
+				b = Math.max(0, Math.min(255, ((b - 128) * cMul + 128) * bMul));
+
+				const lum = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
+				const ci = Math.min(ramp.length - 1, Math.floor(lum * ramp.length));
+				const ch = ramp[ci] === '<' ? '&lt;' : ramp[ci] === '>' ? '&gt;' : ramp[ci] === '&' ? '&amp;' : ramp[ci];
+
+				if (useTruecolor) {
+					html += '<span style="color:rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')">' + ch + '</span>';
+				} else if (useGray) {
+					const gray = (r * 0.2126 + g * 0.7152 + b * 0.0722) | 0;
+					html += '<span style="color:rgb(' + gray + ',' + gray + ',' + gray + ')">' + ch + '</span>';
+				} else {
+					// mono — just the character, CSS color handles it
+					html += ch;
+				}
 			}
-			out += '\n';
+			html += '\n';
 		}
-		_liveAsciiEl.textContent = out;
+
+		if (colourMode === 'mono') {
+			_liveAsciiEl.style.color = monoFg;
+		}
+		_liveAsciiEl.innerHTML = html;
+
+		// Auto-fit font size so ASCII fills the container
+		const box = containerEl.getBoundingClientRect();
+		if (box.width > 0 && box.height > 0 && COLS > 0 && ROWS > 0) {
+			// Each character cell: fontW = box.width / COLS, fontH = box.height / ROWS
+			const fontW = box.width / (COLS + 1); // +1 for newline spacing
+			const fontH = box.height / (ROWS + 1);
+			// Use the smaller to maintain aspect, with line-height set to match
+			const fontSize = Math.min(fontW * 1.65, fontH); // chars are ~0.6× wide as tall
+			_liveAsciiEl.style.fontSize = Math.max(2, fontSize).toFixed(1) + 'px';
+			_liveAsciiEl.style.lineHeight = (fontH / fontSize).toFixed(3);
+		}
 	}
 
 	drawFrame();
@@ -387,9 +457,17 @@ function stopLiveAscii() {
 	if (_liveRafId) { cancelAnimationFrame(_liveRafId); _liveRafId = null; }
 	if (_liveAsciiEl) { _liveAsciiEl.remove(); _liveAsciiEl = null; }
 	if (_liveCanvas) { _liveCanvas.remove(); _liveCanvas = null; }
+	if (_livePipEl) { _livePipEl.srcObject = null; _livePipEl.remove(); _livePipEl = null; }
 	_liveCtx = null;
-	// Reset container bg
+	// Reset container
 	dom.previewVideoContainer.style.background = '';
+	dom.previewVideoContainer.style.minHeight = '';
+	// Restore main video visibility
+	dom.previewVideo.style.opacity = '';
+	dom.previewVideo.style.position = '';
+	dom.previewVideo.style.pointerEvents = '';
+	// Remove recording class if present
+	dom.previewVideoContainer.classList.remove('webcam-recording');
 }
 
 function formatDuration(sec) {
@@ -440,8 +518,9 @@ async function startWebcam() {
 
 function startRecording() {
 	if (!state.webcamStream) return;
-	// Stop live ASCII overlay for the duration of the recording
-	stopLiveAscii();
+	// Keep live ASCII running — MediaRecorder captures the raw stream, not the DOM.
+	// Add flashing red border to indicate recording.
+	dom.previewVideoContainer.classList.add('webcam-recording');
 
 	const chunks = [];
 	const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
@@ -456,7 +535,11 @@ function startRecording() {
 	mr.onstop = async () => {
 		const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
 		const blob = new Blob(chunks, { type: mr.mimeType || 'video/webm' });
-		const filename = 'webcam-' + Date.now() + '.' + ext;
+		// Filename: YYMMDDHHMMSS.webm
+		const now = new Date();
+		const pad = (n) => String(n).padStart(2, '0');
+		const filename = String(now.getFullYear()).slice(2) + pad(now.getMonth() + 1) + pad(now.getDate())
+			+ pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + '.' + ext;
 
 		dom.recordStatus.textContent = 'Uploading…';
 		dom.recordTimer.style.display = 'none';
@@ -558,6 +641,7 @@ function togglePause() {
 }
 
 function stopWebcam() {
+	stopLiveAscii();
 	if (state.recordTimer) { clearInterval(state.recordTimer); setState('recordTimer', null); }
 	if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
 		state.mediaRecorder.stop();
