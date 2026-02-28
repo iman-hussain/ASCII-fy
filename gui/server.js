@@ -345,7 +345,7 @@ async function runConversion(opts) {
 						color: includeColors, outputDir: outputJobDir, render
 					});
 					if (!skipGif) {
-						gifWriter = createAsciiGifWriter({
+						gifWriter = await createAsciiGifWriter({
 							width, height: fh, fps: effectiveFps,
 							render, outputPath: gifPath
 						});

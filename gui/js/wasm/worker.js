@@ -90,7 +90,7 @@ self.onmessage = async (e) => {
 			});
 
 			self.postMessage({ type: 'STATUS', message: 'Encoding GIF... Please wait' });
-			const gifWriter = createAsciiGifWriter({
+			const gifWriter = await createAsciiGifWriter({
 				width: result.width,
 				height: result.height,
 				fps: result.fps,
