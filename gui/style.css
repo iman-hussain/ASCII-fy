@@ -68,6 +68,13 @@ body {
 @media (max-width: 800px) {
 	.app {
 		grid-template-columns: 1fr;
+		padding: 0 16px 32px;
+	}
+}
+
+@media (max-width: 480px) {
+	.app {
+		padding: 0 10px 24px;
 	}
 }
 
@@ -136,13 +143,21 @@ body {
 }
 
 @media (max-width: 800px) {
-	.app {
-		flex-direction: column;
-	}
 
 	.preview-col,
 	.controls-col {
 		width: 100%;
+	}
+
+	.footer-links {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.footer-links>*:first-child,
+	.footer-links>*:nth-child(2),
+	.footer-links>*:last-child {
+		justify-self: center;
 	}
 }
 
@@ -231,6 +246,18 @@ body {
 .preview-tab:disabled {
 	opacity: .35;
 	cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+	.preview-tabs {
+		flex-wrap: wrap;
+	}
+
+	.preview-tab {
+		padding: 6px;
+		font-size: 0.78rem;
+		flex-basis: 33.33%;
+	}
 }
 
 .undo-btn {
@@ -334,11 +361,9 @@ body {
 	border-radius: var(--radius);
 	padding: 8px 14px;
 	display: flex;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
 	gap: 6px 12px;
 	align-items: center;
-	overflow: hidden;
-	white-space: nowrap;
 }
 
 .info-item {
@@ -380,6 +405,23 @@ body {
 	min-width: 120px;
 	flex-shrink: 0;
 	white-space: normal;
+}
+
+@media (max-width: 480px) {
+	.row {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+	}
+
+	.row label {
+		min-width: auto;
+		margin-bottom: 2px;
+	}
+
+	.control {
+		width: 100%;
+	}
 }
 
 .control {
@@ -693,6 +735,7 @@ input[type="checkbox"] {
 .preview-bg-bar {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 8px;
 	padding: 6px 10px;
 	background: var(--surface);

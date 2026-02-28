@@ -724,15 +724,17 @@ function stopWebcam() {
 // Load input files
 (async function loadFiles() {
 	try {
-		const res = await fetch('/api/files');
-		const data = await res.json();
-		if (data.ok && data.files.length) {
-			data.files.forEach(f => {
-				const opt = document.createElement('option');
-				opt.value = f;
-				opt.textContent = f;
-				dom.inputSelect.appendChild(opt);
-			});
+		if (!isStandalone()) {
+			const res = await fetch('/api/files');
+			const data = await res.json();
+			if (data.ok && data.files.length) {
+				data.files.forEach(f => {
+					const opt = document.createElement('option');
+					opt.value = f;
+					opt.textContent = f;
+					dom.inputSelect.appendChild(opt);
+				});
+			}
 		}
 	} catch { }
 })();
