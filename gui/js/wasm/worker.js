@@ -13,10 +13,18 @@ const originalConsole = {
 	info: console.info
 };
 
+function safeStringify(val) {
+	if (val instanceof Error) return val.message || String(val);
+	if (typeof val === 'object' && val !== null) {
+		try { return JSON.stringify(val); } catch { return String(val); }
+	}
+	return String(val);
+}
+
 console.log = function(...args) {
 	originalConsole.log.apply(console, args);
 	try {
-		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		const msg = args.map(safeStringify).join(' ');
 		self.postMessage({ type: 'LOG', level: 'info', message: msg });
 	} catch (e) {
 		// Fail silently
@@ -26,7 +34,7 @@ console.log = function(...args) {
 console.error = function(...args) {
 	originalConsole.error.apply(console, args);
 	try {
-		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		const msg = args.map(safeStringify).join(' ');
 		self.postMessage({ type: 'LOG', level: 'error', message: msg });
 	} catch (e) {
 		// Fail silently
@@ -36,7 +44,7 @@ console.error = function(...args) {
 console.warn = function(...args) {
 	originalConsole.warn.apply(console, args);
 	try {
-		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		const msg = args.map(safeStringify).join(' ');
 		self.postMessage({ type: 'LOG', level: 'warning', message: msg });
 	} catch (e) {
 		// Fail silently
@@ -46,7 +54,7 @@ console.warn = function(...args) {
 console.info = function(...args) {
 	originalConsole.info.apply(console, args);
 	try {
-		const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+		const msg = args.map(safeStringify).join(' ');
 		self.postMessage({ type: 'LOG', level: 'info', message: msg });
 	} catch (e) {
 		// Fail silently
@@ -84,16 +92,23 @@ async function loadModules() {
 }
 
 let abortController = null;
+let currentOperation = null; // Track whether we're doing PROBE or CONVERT
 
 self.onerror = (err) => {
 	console.error('[Worker] Global error:', err);
-	self.postMessage({ type: 'PROBE_ERROR', error: 'Worker initialization failed: ' + (err.message || String(err)) });
+	const errorMsg = 'Worker error: ' + (err.message || String(err));
+	if (currentOperation === 'CONVERT') {
+		self.postMessage({ type: 'CONVERT_ERROR', error: errorMsg });
+	} else {
+		self.postMessage({ type: 'PROBE_ERROR', error: errorMsg });
+	}
 };
 
 self.onmessage = async (e) => {
 	const { type, payload } = e.data;
 
 	if (type === 'PROBE') {
+		currentOperation = 'PROBE';
 		try {
 			console.log('[Worker] Received PROBE message, loading modules...');
 			await loadModules();
@@ -104,10 +119,13 @@ self.onmessage = async (e) => {
 		} catch (err) {
 			console.error('[Worker] Probe failed:', err);
 			self.postMessage({ type: 'PROBE_ERROR', error: err.message || String(err) });
+		} finally {
+			currentOperation = null;
 		}
 	}
 
 	if (type === 'CONVERT') {
+		currentOperation = 'CONVERT';
 		abortController = new AbortController();
 		try {
 			console.log('[Worker] Received CONVERT message, loading modules...');
@@ -173,6 +191,7 @@ self.onmessage = async (e) => {
 			}
 		} finally {
 			abortController = null;
+			currentOperation = null;
 		}
 	}
 
