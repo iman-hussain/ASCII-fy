@@ -33,7 +33,7 @@ export function updateResolution() {
 
 export function updateEstimate() {
 	if (!dom.widthSlider || !dom.heightSlider || !dom.fpsSlider || !dom.modeSelect) return;
-	
+
 	const w = parseInt(dom.widthSlider.value);
 	const h = parseInt(dom.heightSlider.value);
 	const fps = parseInt(dom.fpsSlider.value);
@@ -97,7 +97,7 @@ export function makeEditable(spanEl, sliderEl, opts = {}) {
 
 export function updateVideoFilters() {
 	if (!dom.previewVideo || !dom.previewGif) return;
-	
+
 	const live = dom.livePreview?.checked ?? true;
 	if (!live) {
 		dom.previewVideo.style.filter = '';

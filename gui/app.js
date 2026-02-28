@@ -615,7 +615,7 @@ function startRecording() {
 	mr.onstop = async () => {
 		const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
 		const blob = new Blob(chunks, { type: mr.mimeType || 'video/webm' });
-		
+
 		// Validate recording file size
 		const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 		if (blob.size > MAX_FILE_SIZE) {
@@ -630,7 +630,7 @@ function startRecording() {
 			stopLiveAscii();
 			return;
 		}
-		
+
 		// Filename: YYMMDDHHMMSS.webm
 		const now = new Date();
 		const pad = (n) => String(n).padStart(2, '0');
