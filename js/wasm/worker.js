@@ -15,16 +15,16 @@ async function loadModules() {
 	if (modulesLoaded) return;
 	try {
 		console.log('[Worker] Importing web-converter...');
-		const webConverter = await import('../../../lib/web-converter.js');
+		const webConverter = await import('../../lib/web-converter.js');
 		convertWeb = webConverter.convertWeb;
 		probeVideoWeb = webConverter.probeVideoWeb;
 
 		console.log('[Worker] Importing bundler...');
-		const bundler = await import('../../../lib/bundler.js');
+		const bundler = await import('../../lib/bundler.js');
 		generateBundle = bundler.generateBundle;
 
 		console.log('[Worker] Importing gif...');
-		const gif = await import('../../../lib/gif.js');
+		const gif = await import('../../lib/gif.js');
 		createAsciiGifWriter = gif.createAsciiGifWriter;
 
 		modulesLoaded = true;
