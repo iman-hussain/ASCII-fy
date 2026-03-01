@@ -86,7 +86,7 @@ node scripts/ascii-player.js output/dog/bundle.js
 | Real-time Preview | ✅ | ✅ | ❌ |
 | **Color & Styling** | | | |
 | True Colour Mode | ✅ | ✅ | ✅ |
-| Palette Modes (Realistic, Grayscale, Sunset, Ocean, Dracula) | ✅ | ✅ | ✅ |
+| Palette Modes | ✅ | ✅ | ✅ |
 | K-Means Clustering | ✅ | ✅ | ✅ |
 | Monochrome Mode | ✅ | ✅ | ✅ |
 | Custom Colors (FG/BG) | ✅ | ✅ | ✅ |
