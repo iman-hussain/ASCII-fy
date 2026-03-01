@@ -49,10 +49,10 @@ body {
 	flex-direction: column;
 }
 
-/* Desktop zoom: new 100% = old 150% */
+/* Desktop zoom: new 100% = old 150%, now 180% (1.2x scale) */
 @media (min-width: 769px) {
 	body {
-		zoom: 150%;
+		zoom: 180%;
 	}
 }
 
@@ -379,6 +379,7 @@ body {
 .preview-video,
 .preview-gif {
 	width: 100%;
+	height: auto;
 	max-height: 520px;
 	object-fit: contain;
 	display: block;
