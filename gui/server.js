@@ -334,7 +334,7 @@ async function runConversion(opts) {
 			detail,
 			crop: opts.crop || null,
 			signal: ac.signal,
-			onFrame: (idx, frame) => {
+			onFrame: async (idx, frame) => {
 				frameCount = idx + 1;
 				broadcast('progress', {
 					frame: frameCount, total: expectedFrames,
