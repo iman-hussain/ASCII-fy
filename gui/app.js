@@ -554,13 +554,10 @@ function startLiveAscii(videoEl, containerEl) {
 		_liveCameraSwitchBtn.onclick = switchCamera;
 	}
 
-	// Setup container - use video aspect ratio instead of fixed minHeight
+	// Setup container — fill the preview box fully
 	containerEl.style.position = 'relative';
 	containerEl.style.background = '#0a0a0a';
 	containerEl.style.minHeight = '';
-	const vw = videoEl.videoWidth || 640;
-	const vh = videoEl.videoHeight || 480;
-	containerEl.style.aspectRatio = `${vw} / ${vh}`;
 	containerEl.appendChild(_liveCanvas);
 	containerEl.appendChild(_liveAsciiEl);
 	containerEl.appendChild(_livePipEl);
@@ -622,11 +619,23 @@ function startLiveAscii(videoEl, containerEl) {
 			}
 		}
 
-		// Compute rows preserving aspect ratio
-		const vw = videoEl.videoWidth || 640;
-		const vh = videoEl.videoHeight || 480;
-		// Characters are ~2x taller than wide
-		const ROWS = Math.max(1, Math.round(COLS * (vh / vw) * 0.45));
+		// Compute rows to fill the container's visible shape.
+		// On desktop (landscape) this preserves the video aspect ratio;
+		// on mobile portrait it stretches rows to fill the taller box.
+		const cBox = containerEl.getBoundingClientRect();
+		const cZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+		const cW = cBox.width / cZoom;
+		const cH = cBox.height / cZoom;
+		let ROWS;
+		if (cW > 0 && cH > 0) {
+			// Use container aspect ratio; 0.6 is the char width/height ratio
+			ROWS = Math.max(1, Math.round(COLS * (cH / cW) * 0.6));
+		} else {
+			// Fallback to video aspect ratio
+			const vw = videoEl.videoWidth || 640;
+			const vh = videoEl.videoHeight || 480;
+			ROWS = Math.max(1, Math.round(COLS * (vh / vw) * 0.45));
+		}
 		_liveCanvas.width = COLS;
 		_liveCanvas.height = ROWS;
 		_liveCtx.drawImage(videoEl, 0, 0, COLS, ROWS);
@@ -693,7 +702,7 @@ function startLiveAscii(videoEl, containerEl) {
 			const charHeight = availH / ROWS;
 			// Characters are roughly 0.6x wide as they are tall in monospace fonts
 			const fontSize = Math.min(charWidth / 0.6, charHeight);
-			_liveAsciiEl.style.fontSize = Math.max(2, fontSize * 0.95).toFixed(1) + 'px';
+			_liveAsciiEl.style.fontSize = Math.max(2, fontSize).toFixed(1) + 'px';
 			_liveAsciiEl.style.lineHeight = (charHeight / fontSize).toFixed(3);
 		}
 	}
@@ -711,7 +720,6 @@ function stopLiveAscii() {
 	// Reset container
 	dom.previewVideoContainer.style.background = '';
 	dom.previewVideoContainer.style.minHeight = '';
-	dom.previewVideoContainer.style.aspectRatio = '';
 	// Restore main video visibility
 	dom.previewVideo.style.opacity = '';
 	dom.previewVideo.style.position = '';

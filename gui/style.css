@@ -49,10 +49,10 @@ body {
 	flex-direction: column;
 }
 
-/* Desktop zoom: new 100% = old 150%, now 180% (1.2x scale) */
+/* Desktop zoom: scaled up for larger UI */
 @media (min-width: 769px) {
 	body {
-		zoom: 180%;
+		zoom: 198%;
 	}
 }
 
@@ -1112,7 +1112,7 @@ input:checked+.slider:before {
 	position: absolute;
 	inset: 0;
 	margin: 0;
-	padding: 6px 8px;
+	padding: 0;
 	font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
 	font-size: clamp(3px, 0.75vw, 10px);
 	line-height: 1;
@@ -1127,7 +1127,7 @@ input:checked+.slider:before {
 /* Mobile optimization for live preview */
 @media (max-width: 768px) {
 	.live-ascii-pre {
-		padding: 4px;
+		padding: 0;
 		font-size: clamp(2px, 1vw, 8px);
 	}
 
@@ -1214,8 +1214,8 @@ body.web-mode .drop-zone .label:last-of-type {
 
 /* ── Web-mode: Scaled UI for better preview visibility ─── */
 body.web-mode {
-	/* Desktop already at 180%, web-mode keeps it the same */
-	zoom: 180%;
+	/* Desktop already at 198%, web-mode keeps it the same */
+	zoom: 198%;
 }
 
 /* Reset zoom on mobile for web-mode */
