@@ -577,6 +577,11 @@ function startLiveAscii(videoEl, containerEl) {
 		const { mode, palette: paletteName } = getModeAndPalette(modeSelection);
 		const ramp = charMode === 'block' ? _BLOCK_RAMP : _CHAR_RAMP;
 
+		// Debug log (only log occasionally to avoid spam)
+		if (Math.random() < 0.01) {
+			console.log('[Live Preview] mode:', mode, 'palette:', paletteName);
+		}
+
 		// Tone adjustments
 		const brightAdj = parseInt(dom.brightSlider?.value) || 0;
 		const contrastAdj = parseInt(dom.contrastSlider?.value) || 0;
@@ -594,6 +599,10 @@ function startLiveAscii(videoEl, containerEl) {
 				paletteColors = makeGrayscalePalette(depth);
 			} else if (GRADIENT_PRESETS[paletteName]) {
 				paletteColors = makeGradientPalette(GRADIENT_PRESETS[paletteName], depth);
+			}
+			// Debug log palette generation
+			if (Math.random() < 0.01 && paletteColors) {
+				console.log('[Live Preview] Generated palette with', paletteColors.length, 'colors, first 3:', paletteColors.slice(0, 3));
 			}
 		}
 
