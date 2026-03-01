@@ -76,6 +76,43 @@ node scripts/ascii-player.js output/dog/bundle.js
 
 ---
 
+## 📊 Platform Feature Comparison
+
+| Feature | Web Preview | GUI | CLI |
+|---------|-------------|-----|-----|
+| **Input Methods** | | | |
+| Webcam / Live | ✅ | ✅ | ⚠️ (via system input) |
+| File Upload | ❌ | ✅ | ✅ |
+| Real-time Preview | ✅ | ✅ | ❌ |
+| **Color & Styling** | | | |
+| True Colour Mode | ✅ | ✅ | ✅ |
+| Palette Modes (Realistic, Grayscale, Sunset, Ocean, Dracula) | ✅ | ✅ | ✅ |
+| K-Means Clustering | ✅ | ✅ | ✅ |
+| Monochrome Mode | ✅ | ✅ | ✅ |
+| Custom Colors (FG/BG) | ✅ | ✅ | ✅ |
+| **Video Processing** | | | |
+| Brightness/Contrast Adjustment | ✅ | ✅ | ✅ |
+| Cropping | ❌ | ✅ | ⚠️ (manual coordinates) |
+| Trimming (Start/End) | ❌ | ✅ | ✅ |
+| Subject Isolation (ML-powered) | ❌ | ✅ | ✅ |
+| Character vs Block Mode | ✅ | ✅ | ✅ |
+| **Output Options** | | | |
+| Skip GIF Generation | ❌ | ✅ | ✅ |
+| Web Player Bundle (JS) | ✅ | ✅ | ✅ |
+| GIF Preview | ✅ | ✅ | ✅ |
+| Terminal Playback | ❌ | ✅ | ✅ |
+| **Batch & Automation** | | | |
+| Batch Processing | ❌ | ❌ | ✅ |
+| Programmatic API | ❌ | ❌ | ✅ |
+| Configuration Files | ❌ | ❌ | ✅ |
+
+**Legend:**
+- ✅ = Fully supported
+- ⚠️ = Partially supported or requires workaround
+- ❌ = Not available
+
+---
+
 ## 🛠️ Programmatic API
 
 When importing `ascii-fi`, you receive access to the full video generation capabilities and an inline Terminal Player.
