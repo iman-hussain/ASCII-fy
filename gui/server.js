@@ -178,7 +178,7 @@ async function runConversion(opts) {
 		} = opts;
 		let foreground = _fgRaw;
 
-		// Normalize grayscale mode to palette mode
+		// Normalize grayscale mode to palette mode (legacy support)
 		let mode = _mode;
 		let palette = _palette;
 		if (mode === 'grayscale') {
@@ -237,12 +237,12 @@ async function runConversion(opts) {
 			console.log(`[server] Sampling video for adaptive tone (${palette})...`);
 			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
 			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
-			
+
 			// Reduce saturation for grayscale
 			if (palette === 'grayscale') {
 				tone.saturation = 0;
 			}
-			
+
 			render = {
 				mode: 'palette', palette: pal, charMode,
 				theme: { fg: '#111', bg: resolvedBg }, label: `${palette.charAt(0).toUpperCase() + palette.slice(1)} (${depth} colours)`
@@ -558,7 +558,7 @@ async function handler(req, res) {
 
 				/* Build render config (same logic as runConversion) */
 			let render, tone;
-			
+
 			// Normalize grayscale mode to palette mode
 			let previewMode = mode;
 			let previewPalette = palette;
@@ -566,7 +566,7 @@ async function handler(req, res) {
 				previewMode = 'palette';
 				previewPalette = 'grayscale';
 			}
-			
+
 			const inputExt = extname(resolved).toLowerCase();
 			if (previewMode === 'mono') {
 				render = {

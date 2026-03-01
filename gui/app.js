@@ -990,7 +990,6 @@ dom.previewBgCustom.addEventListener('input', () => {
 	dom.previewBgBar.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
 	applyPreviewBg(dom.previewBgCustom.value);
 });
-if (dom.paletteSelect) dom.paletteSelect.addEventListener('change', updatePaletteSwatches);
 dom.depthSlider.addEventListener('input', updatePaletteSwatches);
 updateModeFields();
 updateForegroundFields();

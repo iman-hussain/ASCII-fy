@@ -77,7 +77,7 @@ export async function startConvert() {
 
 	const modeSelection = dom.modeSelect.value;
 	const { mode, palette } = getModeAndPalette(modeSelection);
-	
+
 	const opts = {
 		inputPath: state.selectedPath,
 		width: parseInt(dom.widthSlider.value),
@@ -100,6 +100,9 @@ export async function startConvert() {
 		detail: parseInt(dom.detailSlider?.value ?? 100),
 		qStep: parseInt(dom.qStepSlider?.value ?? 24)
 	};
+
+	console.log('[startConvert] Mode selection:', modeSelection, '-> mode:', mode, 'palette:', palette);
+	console.log('[startConvert] Full options:', opts);
 
 	setState('lastConvertOptions', {
 		mode,
