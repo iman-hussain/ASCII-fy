@@ -5,7 +5,7 @@ import { startConvert, stopConversion, isStandalone, isWebEnvironment } from './
 import {
 	updateEstimate, updateResolution, makeEditable, updateModeFields,
 	updateForegroundFields, applyPreviewBg, resetPreviewBg,
-	showPreviewBgBar, updatePaletteSwatches, updateVideoFilters
+	showPreviewBgBar, updatePaletteSwatches, updateVideoFilters, getModeAndPalette
 } from './js/ui.js';
 import {
 	toggleCrop, syncCropInputsToBox, syncTrimInputsToSliders,
@@ -465,6 +465,60 @@ function addDownloadAction(label, url, filename) {
 const _CHAR_RAMP = ' .:-=+*#%@';
 const _BLOCK_RAMP = ' ░▒▓█';
 
+// Gradient presets for palette modes
+const GRADIENT_PRESETS = {
+	realistic: [[12, 18, 30], [40, 80, 140], [120, 160, 120], [200, 170, 120], [220, 220, 210]],
+	grayscale: [[0, 0, 0], [255, 255, 255]],
+	sunset: [[255, 94, 58], [255, 149, 0], [255, 204, 0]],
+	ocean: [[0, 24, 72], [0, 118, 255], [0, 217, 255]],
+	dracula: [[40, 42, 54], [97, 175, 239], [255, 121, 198], [189, 147, 249], [80, 250, 123]],
+	neon: [[57, 255, 20], [0, 255, 255], [255, 0, 255]],
+	forest: [[16, 64, 32], [34, 139, 34], [154, 205, 50]],
+};
+
+function makeGradientPalette(stops, steps) {
+	const palette = [];
+	const count = Math.max(2, steps);
+	const segments = stops.length - 1;
+	for (let i = 0; i < count; i++) {
+		const t = i / (count - 1);
+		const seg = Math.min(segments - 1, Math.floor(t * segments));
+		const localT = (t - seg / segments) * segments;
+		const a = stops[seg];
+		const b = stops[seg + 1];
+		palette.push([
+			Math.round(a[0] + (b[0] - a[0]) * localT),
+			Math.round(a[1] + (b[1] - a[1]) * localT),
+			Math.round(a[2] + (b[2] - a[2]) * localT),
+		]);
+	}
+	return palette;
+}
+
+function makeGrayscalePalette(steps) {
+	const palette = [];
+	const count = Math.max(2, steps);
+	for (let i = 0; i < count; i++) {
+		const v = Math.round((i / (count - 1)) * 255);
+		palette.push([v, v, v]);
+	}
+	return palette;
+}
+
+function nearestPaletteColor(rgb, palette) {
+	if (!palette || !palette.length) return rgb;
+	let bestDist = Infinity;
+	let best = palette[0];
+	for (let i = 0; i < palette.length; i++) {
+		const dr = rgb[0] - palette[i][0];
+		const dg = rgb[1] - palette[i][1];
+		const db = rgb[2] - palette[i][2];
+		const d = dr * dr + dg * dg + db * db;
+		if (d < bestDist) { bestDist = d; best = palette[i]; }
+	}
+	return best;
+}
+
 let _liveRafId = null;
 let _liveCanvas = null;
 let _liveCtx = null;
@@ -519,7 +573,8 @@ function startLiveAscii(videoEl, containerEl) {
 		// ── Read UI controls ──
 		const COLS = parseInt(dom.widthSlider.value) || 80;
 		const charMode = dom.charMode?.value || 'ascii';
-		const colourMode = dom.modeSelect?.value || 'truecolor';
+		const modeSelection = dom.modeSelect?.value || 'truecolor';
+		const { mode, palette: paletteName } = getModeAndPalette(modeSelection);
 		const ramp = charMode === 'block' ? _BLOCK_RAMP : _CHAR_RAMP;
 
 		// Tone adjustments
@@ -530,6 +585,17 @@ function startLiveAscii(videoEl, containerEl) {
 
 		// Mono colours
 		const monoFg = dom.fgInput?.value || '#00ff00';
+
+		// Build palette for palette mode
+		let paletteColors = null;
+		if (mode === 'palette' && paletteName) {
+			const depth = parseInt(dom.depthSlider?.value) || 16;
+			if (paletteName === 'grayscale') {
+				paletteColors = makeGrayscalePalette(depth);
+			} else if (GRADIENT_PRESETS[paletteName]) {
+				paletteColors = makeGradientPalette(GRADIENT_PRESETS[paletteName], depth);
+			}
+		}
 
 		// Compute rows preserving aspect ratio
 		const vw = videoEl.videoWidth || 640;
@@ -545,7 +611,7 @@ function startLiveAscii(videoEl, containerEl) {
 		catch { return; }
 
 		// ── Build output ──
-		const useTruecolor = colourMode === 'truecolor' || colourMode === 'palette' || colourMode === 'kmeans';
+		const useColor = mode === 'truecolor' || mode === 'palette';
 		let html = '';
 
 		for (let y = 0; y < ROWS; y++) {
@@ -558,11 +624,19 @@ function startLiveAscii(videoEl, containerEl) {
 				g = Math.max(0, Math.min(255, ((g - 128) * cMul + 128) * bMul));
 				b = Math.max(0, Math.min(255, ((b - 128) * cMul + 128) * bMul));
 
+				// Apply palette quantization if in palette mode
+				if (mode === 'palette' && paletteColors) {
+					const quantized = nearestPaletteColor([r, g, b], paletteColors);
+					r = quantized[0];
+					g = quantized[1];
+					b = quantized[2];
+				}
+
 				const lum = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
 				const ci = Math.min(ramp.length - 1, Math.floor(lum * ramp.length));
 				const ch = ramp[ci] === '<' ? '&lt;' : ramp[ci] === '>' ? '&gt;' : ramp[ci] === '&' ? '&amp;' : ramp[ci];
 
-				if (useTruecolor) {
+				if (useColor) {
 					html += '<span style="color:rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')">' + ch + '</span>';
 				} else {
 					// mono — just the character, CSS color handles it
@@ -572,7 +646,7 @@ function startLiveAscii(videoEl, containerEl) {
 			html += '\n';
 		}
 
-		if (colourMode === 'mono') {
+		if (mode === 'mono') {
 			_liveAsciiEl.style.color = monoFg;
 		}
 		_liveAsciiEl.innerHTML = html;
