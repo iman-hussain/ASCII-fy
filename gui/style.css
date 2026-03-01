@@ -1148,7 +1148,7 @@ input:checked+.slider:before {
 	.preview-box {
 		margin: 0;
 		overflow-y: auto;
-		max-height: 42vh;
+		max-height: 60vh;
 	}
 
 	.preview-video,
@@ -1167,7 +1167,7 @@ input:checked+.slider:before {
 		background: var(--bg);
 		padding-top: 4px;
 		padding-bottom: 4px;
-		max-height: 45vh;
+		max-height: 63vh;
 		overflow-y: auto;
 	}
 }
