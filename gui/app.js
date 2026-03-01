@@ -630,16 +630,12 @@ function startLiveAscii(videoEl, containerEl) {
 			}
 		}
 
-		// Compute rows preserving aspect ratio.
-		// Use the container's displayed aspect ratio (which is already
-		// portrait on mobile) rather than raw video dimensions.
-		const contRect = containerEl.getBoundingClientRect();
-		const contZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
-		const contW = contRect.width / contZoom;
-		const contH = contRect.height / contZoom;
-		let displayAR = contW > 0 && contH > 0 ? contH / contW : ((videoEl.videoHeight || 480) / (videoEl.videoWidth || 640));
-		// Char aspect correction: monospace chars are ~1.8x taller than wide
-		const ROWS = Math.max(1, Math.round(COLS * displayAR * 0.5));
+		// Compute rows from the VIDEO's true aspect ratio so the
+		// entire camera frame is always captured (never cropped).
+		const vidW = videoEl.videoWidth || 640;
+		const vidH = videoEl.videoHeight || 480;
+		// Monospace chars are ~1.8x taller than wide, so 0.5 corrects
+		const ROWS = Math.max(1, Math.round(COLS * (vidH / vidW) * 0.5));
 		_liveCanvas.width = COLS;
 		_liveCanvas.height = ROWS;
 		_liveCtx.drawImage(videoEl, 0, 0, COLS, ROWS);
@@ -689,37 +685,39 @@ function startLiveAscii(videoEl, containerEl) {
 		}
 		_liveAsciiEl.innerHTML = html;
 
-		// Auto-fit font size to show full camera view
-		// getBoundingClientRect returns screen-px (includes CSS zoom), but
-		// font-size is set in CSS-px which the browser zooms again — divide
-		// out the zoom so we size for the CSS-px coordinate space.
+		// Auto-fit font size to show full camera view.
+		// Size purely by WIDTH so the entire video width always fits;
+		// centre vertically in the container.
 		const zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
 		const box = containerEl.getBoundingClientRect();
-		const preStyle = getComputedStyle(_liveAsciiEl);
-		const padX = parseFloat(preStyle.paddingLeft) + parseFloat(preStyle.paddingRight);
-		const padY = parseFloat(preStyle.paddingTop) + parseFloat(preStyle.paddingBottom);
-		const availW = box.width / zoom - padX;
-		const availH = box.height / zoom - padY;
-		if (availW > 0 && availH > 0 && COLS > 0 && ROWS > 0) {
+		const availW = box.width / zoom;
+		if (availW > 0 && COLS > 0 && ROWS > 0) {
 			// Measure actual monospace character aspect ratio using a probe
 			if (!startLiveAscii._charRatio) {
 				const probe = document.createElement('span');
-				probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:16px ' + preStyle.fontFamily + ';letter-spacing:0px;';
+				probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:100px "Cascadia Code",Consolas,"Courier New",monospace;letter-spacing:0px;line-height:1;';
 				probe.textContent = 'M';
 				document.body.appendChild(probe);
 				const pr = probe.getBoundingClientRect();
-				startLiveAscii._charRatio = (pr.width / zoom) / (pr.height / zoom) || 0.55;
+				startLiveAscii._charRatio = pr.width / pr.height || 0.55;
 				probe.remove();
 			}
-			const charRatio = startLiveAscii._charRatio; // actual width/height
+			const charRatio = startLiveAscii._charRatio;
 
-			// Font size constrained by both axes
-			const fsByWidth = availW / (COLS * charRatio);
-			const fsByHeight = availH / ROWS;
-			const fontSize = Math.max(2, Math.min(fsByWidth, fsByHeight));
+			// Font size that makes COLS characters exactly fill the width
+			const fontSize = Math.max(2, availW / (COLS * charRatio));
 			_liveAsciiEl.style.fontSize = fontSize.toFixed(1) + 'px';
 			_liveAsciiEl.style.lineHeight = '1';
 			_liveAsciiEl.style.letterSpacing = '0px';
+
+			// Centre the text block vertically
+			const textBlockH = fontSize * ROWS;
+			const availH = box.height / zoom;
+			if (availH > textBlockH) {
+				_liveAsciiEl.style.paddingTop = ((availH - textBlockH) / 2).toFixed(0) + 'px';
+			} else {
+				_liveAsciiEl.style.paddingTop = '0';
+			}
 		}
 	}
 
