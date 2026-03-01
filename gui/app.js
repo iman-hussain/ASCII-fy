@@ -699,11 +699,47 @@ function formatDuration(sec) {
 	return m + ':' + String(s).padStart(2, '0');
 }
 
+async function switchCamera() {
+	if (!state.availableCameras || state.availableCameras.length <= 1) return;
+
+	// Stop current stream
+	if (state.webcamStream) {
+		state.webcamStream.getTracks().forEach(t => t.stop());
+	}
+	stopLiveAscii();
+
+	// Cycle to next camera
+	const currentIndex = state.currentCameraIndex || 0;
+	const nextIndex = (currentIndex + 1) % state.availableCameras.length;
+	setState('currentCameraIndex', nextIndex);
+
+	// Restart webcam with new camera
+	await startWebcam();
+}
+
 async function startWebcam() {
+	// Enumerate available video devices
+	let videoDevices = [];
+	try {
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		videoDevices = devices.filter(d => d.kind === 'videoinput');
+	} catch (err) {
+		console.warn('Could not enumerate devices:', err);
+	}
+
+	setState('availableCameras', videoDevices);
+
+	// Get current camera index or default to 0
+	const currentCameraIndex = state.currentCameraIndex || 0;
+	const deviceId = videoDevices[currentCameraIndex]?.deviceId;
+
 	// Request camera only (no audio)
 	let stream;
 	try {
-		stream = await navigator.mediaDevices.getUserMedia({ video: true });
+		const constraints = {
+			video: deviceId ? { deviceId: { exact: deviceId } } : true
+		};
+		stream = await navigator.mediaDevices.getUserMedia(constraints);
 	} catch (err) {
 		alert('Could not access webcam: ' + err.message);
 		return;
@@ -724,10 +760,22 @@ async function startWebcam() {
 	dom.fileHeader.classList.add('hidden');
 	dom.previewTabs.classList.add('hidden');
 
-	// Show webcam bar (but not on web mode)
+	// Show webcam bar when there are multiple cameras (desktop or web)
+	// In web mode, only show if multiple cameras are available
 	if (!isWebEnvironment()) {
 		dom.webcamBar.classList.remove('hidden');
+	} else if (videoDevices.length > 1) {
+		dom.webcamBar.classList.remove('hidden');
 	}
+
+	// Show/hide camera switch button based on available cameras
+	if (videoDevices.length > 1) {
+		dom.switchCameraBtn.style.display = '';
+		dom.switchCameraBtn.disabled = false;
+	} else {
+		dom.switchCameraBtn.style.display = 'none';
+	}
+
 	dom.recordStartBtn.disabled = false;
 	dom.recordPauseBtn.disabled = true;
 	dom.recordPauseBtn.style.display = 'none';
@@ -916,6 +964,8 @@ function stopWebcam() {
 	dom.previewVideo.setAttribute('controls', '');
 	setState('mediaRecorder', null);
 	setState('recordedChunks', []);
+	setState('currentCameraIndex', 0);
+	setState('availableCameras', []);
 	dom.webcamBar.classList.add('hidden');
 	dom.recordStartBtn.disabled = true;
 	dom.recordStartBtn.style.display = '';
@@ -923,6 +973,7 @@ function stopWebcam() {
 	dom.recordStopBtn.style.display = 'none';
 	dom.recordStatus.textContent = 'Ready — click Record to start';
 	dom.recordTimer.style.display = 'none';
+	dom.switchCameraBtn.style.display = 'none';
 }
 
 /* ── DOM Init Logic ────────────────────────────────────────── */
@@ -1162,6 +1213,7 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 
 // Action logic
 dom.webcamBtn.addEventListener('click', startWebcam);
+dom.switchCameraBtn.addEventListener('click', switchCamera);
 dom.recordStartBtn.addEventListener('click', startRecording);
 dom.recordPauseBtn.addEventListener('click', togglePause);
 dom.recordStopBtn.addEventListener('click', stopRecording);
@@ -1240,6 +1292,7 @@ function initWebMode() {
 	if (dom.recordStopBtn) dom.recordStopBtn.style.display = 'none';
 	if (dom.recordStatus) dom.recordStatus.style.display = 'none';
 	if (dom.recordTimer) dom.recordTimer.style.display = 'none';
+	// Keep switchCameraBtn visible - it will be shown/hidden by startWebcam() based on available cameras
 
 	// Skip GIF checkbox (GIF generation not configurable on web)
 	if (dom.skipGif) dom.skipGif.closest('.row').style.display = 'none';
@@ -1253,7 +1306,7 @@ function initWebMode() {
 	// Subject isolation / foreground mode (requires WASM model loading not suitable for web)
 	if (dom.fgIsolationRow) dom.fgIsolationRow.style.display = 'none';
 
-	// Webcam bar (not needed for live preview)
+	// Webcam bar starts hidden, will be shown by startWebcam() if multiple cameras available
 	if (dom.webcamBar) dom.webcamBar.classList.add('hidden');
 
 	// Trim controls (not applicable for live webcam)

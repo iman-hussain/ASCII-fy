@@ -19,6 +19,8 @@ export const state = {
 	recordedChunks: [],
 	recordTimer: null,
 	recordStartTime: 0,
+	currentCameraIndex: 0,
+	availableCameras: [],
 	isCropping: false,
 	framePreviewHtml: null,
 	currentPreviewBg: '#000000',

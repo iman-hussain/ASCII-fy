@@ -29,6 +29,7 @@ export const dom = new Proxy({}, {
 			previewGif: '#previewGif',
 			webcamBar: '#webcamBar',
 			webcamBtn: '#webcamBtn',
+			switchCameraBtn: '#switchCameraBtn',
 			recordStartBtn: '#recordStartBtn',
 			recordPauseBtn: '#recordPauseBtn',
 			recordStopBtn: '#recordStopBtn',

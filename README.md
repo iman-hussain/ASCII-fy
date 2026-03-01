@@ -80,36 +80,21 @@ node scripts/ascii-player.js output/dog/bundle.js
 
 | Feature | Web Preview | GUI | CLI |
 |---------|-------------|-----|-----|
-| **Input Methods** | | | |
-| Webcam / Live | ✅ | ✅ | ⚠️ (via system input) |
-| File Upload | ❌ | ✅ | ✅ |
-| Real-time Preview | ✅ | ✅ | ❌ |
-| **Color & Styling** | | | |
-| True Colour Mode | ✅ | ✅ | ✅ |
-| Palette Modes | ✅ | ✅ | ✅ |
-| K-Means Clustering | ✅ | ✅ | ✅ |
-| Monochrome Mode | ✅ | ✅ | ✅ |
-| Custom Colors (FG/BG) | ✅ | ✅ | ✅ |
-| **Video Processing** | | | |
-| Brightness/Contrast Adjustment | ✅ | ✅ | ✅ |
-| Cropping | ❌ | ✅ | ⚠️ (manual coordinates) |
-| Trimming (Start/End) | ❌ | ✅ | ✅ |
-| Subject Isolation (ML-powered) | ❌ | ✅ | ✅ |
+| Custom Colour Palettes | ✅ | ✅ | ✅ |
+| Brightness/Contrast | ✅ | ✅ | ✅ |
 | Character vs Block Mode | ✅ | ✅ | ✅ |
-| **Output Options** | | | |
-| Skip GIF Generation | ❌ | ✅ | ✅ |
 | Web Player Bundle (JS) | ✅ | ✅ | ✅ |
 | GIF Preview | ✅ | ✅ | ✅ |
+| Webcam Input | ✅ | ✅ | ✅ |
+| File Upload | ❌ | ✅ | ✅ |
+| Trimming (Start/End) | ❌ | ✅ | ✅ |
+| Subject Isolation (ML) | ❌ | ✅ | ✅ |
 | Terminal Playback | ❌ | ✅ | ✅ |
-| **Batch & Automation** | | | |
+| Cropping | ❌ | ✅ | ✅ |
+| Real-time Preview | ✅ | ✅ | ❌ |
 | Batch Processing | ❌ | ❌ | ✅ |
 | Programmatic API | ❌ | ❌ | ✅ |
 | Configuration Files | ❌ | ❌ | ✅ |
-
-**Legend:**
-- ✅ = Fully supported
-- ⚠️ = Partially supported or requires workaround
-- ❌ = Not available
 
 ---
 

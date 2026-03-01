@@ -49,6 +49,13 @@ body {
 	flex-direction: column;
 }
 
+/* Desktop zoom: new 100% = old 150% */
+@media (min-width: 769px) {
+	body {
+		zoom: 150%;
+	}
+}
+
 .main-wrapper {
 	flex: 1;
 }
@@ -1068,6 +1075,51 @@ input:checked+.slider:before {
 	overflow: hidden;
 	z-index: 10;
 	pointer-events: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Mobile optimization for live preview */
+@media (max-width: 768px) {
+	.live-ascii-pre {
+		padding: 4px;
+		font-size: clamp(2px, 1vw, 8px);
+	}
+
+	#previewVideoContainer {
+		width: 100% !important;
+		max-width: 100vw;
+		height: auto;
+		position: relative;
+	}
+
+	.preview-content {
+		padding: 0;
+		overflow: hidden;
+		align-items: flex-start;
+		justify-content: center;
+	}
+
+	.preview-box {
+		margin: 0;
+		overflow-y: auto;
+		max-height: 80vh;
+	}
+
+	.preview-video,
+	.preview-gif {
+		max-height: none;
+		height: auto;
+		width: 100%;
+		object-fit: contain;
+		object-position: center top;
+	}
+
+	.preview-col {
+		position: static;
+		top: auto;
+	}
 }
 
 .hidden {
@@ -1112,5 +1164,13 @@ body.web-mode .drop-zone .label:last-of-type {
 
 /* ── Web-mode: Scaled UI for better preview visibility ─── */
 body.web-mode {
-	zoom: 115%;
+	/* Desktop already at 150%, web-mode keeps it the same */
+	zoom: 150%;
+}
+
+/* Reset zoom on mobile for web-mode */
+@media (max-width: 768px) {
+	body.web-mode {
+		zoom: 100%;
+	}
 }

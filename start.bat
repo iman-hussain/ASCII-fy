@@ -34,7 +34,7 @@ if not exist "%ROOT%\package.json" (
 	REM Scenario B: Single Script in an empty folder
 	echo [INFO] Bootstrapping ASCII-fi repository...
 	call git init
-	call git remote add origin https://github.com/iman-hussain/ASCII-fy.git
+	call git remote add origin https://github.com/iman-hussain/ASCII-fi.git
 	call git fetch
 	call git checkout -f main
 	if !errorlevel! neq 0 (
