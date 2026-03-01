@@ -72,6 +72,7 @@ const gradientPresets = {
 	grayscale: [[0, 0, 0], [255, 255, 255]],
 	sunset: [[255, 94, 58], [255, 149, 0], [255, 204, 0]],
 	ocean: [[0, 24, 72], [0, 118, 255], [0, 217, 255]],
+	dracula: [[40, 42, 54], [97, 175, 239], [255, 121, 198], [189, 147, 249], [80, 250, 123]],
 	neon: [[57, 255, 20], [0, 255, 255], [255, 0, 255]],
 	forest: [[16, 64, 32], [34, 139, 34], [154, 205, 50]],
 };
@@ -88,7 +89,7 @@ function safeOutputName(inputPath) {
 
 function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode, detail }) {
 	const parts = [safeOutputName(inputPath), mode || 'truecolor'];
-	if ((mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') && depth) parts.push(`${depth}c`);
+	if ((mode === 'palette' || mode === 'kmeans') && depth) parts.push(`${depth}c`);
 	if (mode === 'palette' && palette) parts.push(palette);
 	if (width) parts.push(`${width}w`);
 	if (fps) parts.push(`${fps}fps`);
@@ -162,10 +163,10 @@ async function runConversion(opts) {
 			width = 100,
 			height,
 			fps = 24,
-			mode = 'truecolor',
+			mode: _mode = 'truecolor',
 			charMode = 'ascii',
 			depth = 16,
-			palette = 'realistic',
+			palette: _palette = 'realistic',
 			fg = '#00ff00',
 			bg = '#000000',
 			playerBg = '',
@@ -176,6 +177,14 @@ async function runConversion(opts) {
 			foreground: _fgRaw = null,
 		} = opts;
 		let foreground = _fgRaw;
+
+		// Normalize grayscale mode to palette mode
+		let mode = _mode;
+		let palette = _palette;
+		if (mode === 'grayscale') {
+			mode = 'palette';
+			palette = 'grayscale';
+		}
 
 		broadcast('log', { msg: 'Probing video…' });
 		console.log('[server] Probing video:', inputPath);
@@ -222,26 +231,21 @@ async function runConversion(opts) {
 				theme: { fg: fg || '#00ff00', bg: bg || '#000000' }, label: 'Monochrome'
 			};
 			tone = { contrast: 1.15, brightness: 0.02, saturation: 1.0, gamma: 1.05 };
-		} else if (mode === 'grayscale') {
-			const pal = makeGrayscalePalette(depth);
-			broadcast('log', { msg: 'Sampling video for adaptive tone…' });
-			console.log('[server] Sampling video for adaptive tone (grayscale)...');
-			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
-			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
-			tone.saturation = 0;
-			render = {
-				mode: 'palette', palette: pal, charMode,
-				theme: { fg: '#111', bg: resolvedBg }, label: `Grayscale (${depth} shades)`
-			};
 		} else if (mode === 'palette') {
 			const pal = buildPresetPalette(palette, depth);
 			broadcast('log', { msg: 'Sampling video for adaptive tone…' });
-			console.log('[server] Sampling video for adaptive tone (palette)...');
+			console.log(`[server] Sampling video for adaptive tone (${palette})...`);
 			const stats = await sampleVideoLuminance(inputPath, width, meta, opts.crop);
 			tone = adaptiveTone(depth, stats, inputExt, opts.customTone);
+			
+			// Reduce saturation for grayscale
+			if (palette === 'grayscale') {
+				tone.saturation = 0;
+			}
+			
 			render = {
 				mode: 'palette', palette: pal, charMode,
-				theme: { fg: '#111', bg: resolvedBg }, label: `${palette} (${depth} colours)`
+				theme: { fg: '#111', bg: resolvedBg }, label: `${palette.charAt(0).toUpperCase() + palette.slice(1)} (${depth} colours)`
 			};
 		} else if (mode === 'kmeans') {
 			broadcast('log', { msg: `Extracting ${depth}-colour palette via k-means…` });
@@ -553,27 +557,32 @@ async function handler(req, res) {
 					: (meta.duration ? meta.duration / 2 : 1);
 
 				/* Build render config (same logic as runConversion) */
-				const inputExt = extname(resolved).toLowerCase();
-				let render, tone;
-				if (mode === 'mono') {
-					render = {
-						mode: 'mono', palette: null, charMode,
-						theme: { fg: opts.fg || '#00ff00', bg: opts.bg || '#000000' }
-					};
-					tone = { contrast: 1.15, brightness: 0.02, saturation: 1.0, gamma: 1.05 };
-				} else if (mode === 'grayscale') {
-					const pal = makeGrayscalePalette(depth);
-					const stats = await sampleVideoLuminance(resolved, w, meta);
-					tone = adaptiveTone(depth, stats, inputExt);
+			let render, tone;
+			
+			// Normalize grayscale mode to palette mode
+			let previewMode = mode;
+			let previewPalette = palette;
+			if (previewMode === 'grayscale') {
+				previewMode = 'palette';
+				previewPalette = 'grayscale';
+			}
+			
+			const inputExt = extname(resolved).toLowerCase();
+			if (previewMode === 'mono') {
+				render = {
+					mode: 'mono', palette: null, charMode,
+					theme: { fg: opts.fg || '#00ff00', bg: opts.bg || '#000000' }
+				};
+				tone = { contrast: 1.15, brightness: 0.02, saturation: 1.0, gamma: 1.05 };
+			} else if (previewMode === 'palette') {
+				const pal = buildPresetPalette(previewPalette, depth);
+				const stats = await sampleVideoLuminance(resolved, w, meta);
+				tone = adaptiveTone(depth, stats, inputExt);
+				if (previewPalette === 'grayscale') {
 					tone.saturation = 0;
-					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
-				} else if (mode === 'palette') {
-					const pal = buildPresetPalette(palette, depth);
-					const stats = await sampleVideoLuminance(resolved, w, meta);
-					tone = adaptiveTone(depth, stats, inputExt);
-					render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
-				} else if (mode === 'kmeans') {
-					const pal = await extractPaletteFromVideo(resolved, w, meta, depth);
+				}
+				render = { mode: 'palette', palette: pal, charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };
+			} else if (previewMode === 'kmeans') {
 					const stats = await sampleVideoLuminance(resolved, w, meta);
 					tone = adaptiveTone(depth, stats, inputExt);
 					render = { mode: 'palette', palette: pal || makeGrayscalePalette(depth), charMode, theme: { fg: '#111', bg: opts.bg || '#000000' } };

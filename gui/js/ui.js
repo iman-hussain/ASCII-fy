@@ -14,7 +14,7 @@ export function estimateBundleBase({ w, h, frames, mode, depth = 16, qStep = 24,
 
 	if (mode === 'mono') {
 		bpc = 0.12;
-	} else if (mode === 'palette' || mode === 'kmeans' || mode === 'grayscale') {
+	} else if (mode === 'palette' || mode === 'kmeans') {
 		const colourFactor = Math.log2(Math.max(2, depth)) / 8; // scales with depth
 		bpc = 0.4 * colourFactor * qFactor;
 	} else if (mode === 'truecolor') {
@@ -115,22 +115,47 @@ export function updateVideoFilters() {
 }
 
 export function updateModeFields() {
-	const m = dom.modeSelect.value;
+	const selection = dom.modeSelect.value;
+	const { mode, palette } = getModeAndPalette(selection);
 
-	// Sub-options container is visible for all modes (each has at least one sub-param)
-	dom.colourSubOptions.classList.remove('hidden');
+	// Sub-options container is visible unless truecolor mode
+	dom.colourSubOptions.classList.toggle('hidden', mode === 'truecolor');
 
-	dom.qStepRow.classList.toggle('hidden', m !== 'truecolor');
-	dom.paletteRow.classList.toggle('hidden', m !== 'palette');
-	dom.depthRow.classList.toggle('hidden', m !== 'palette' && m !== 'kmeans' && m !== 'grayscale');
-	dom.monoFgRow.classList.toggle('hidden', m !== 'mono');
-	dom.monoBgRow.classList.toggle('hidden', m !== 'mono');
+	// Quantise slider only for truecolor
+	dom.qStepRow.classList.toggle('hidden', mode !== 'truecolor');
+	
+	// Palette swatches for palette modes (show for all palettes)
+	if (mode === 'palette') {
+		updatePaletteSwatches(palette);
+	} else {
+		dom.paletteSwatch.innerHTML = '';
+	}
+	
+	// Depth slider for palette and kmeans modes
+	dom.depthRow.classList.toggle('hidden', mode !== 'palette' && mode !== 'kmeans');
+	
+	// Mono colour selectors only for monochrome mode
+	dom.monoFgRow.classList.toggle('hidden', mode !== 'mono');
+	dom.monoBgRow.classList.toggle('hidden', mode !== 'mono');
 
-	if (m === 'palette') updatePaletteSwatches();
-	else dom.paletteSwatch.innerHTML = '';
-
-	// Outline only is only for ASCII mode
 	updateCharModeFields();
+}
+
+export function getModeAndPalette(selection) {
+	// Map unified dropdown value to actual mode + palette
+	const paletteNames = ['realistic', 'grayscale', 'sunset', 'ocean', 'dracula', 'neon', 'forest'];
+	
+	if (selection === 'truecolor') {
+		return { mode: 'truecolor', palette: null };
+	} else if (selection === 'kmeans') {
+		return { mode: 'kmeans', palette: null };
+	} else if (selection === 'mono') {
+		return { mode: 'mono', palette: null };
+	} else if (paletteNames.includes(selection)) {
+		return { mode: 'palette', palette: selection };
+	}
+	// Fallback
+	return { mode: 'truecolor', palette: null };
 }
 
 export function updateCharModeFields() {
@@ -203,6 +228,7 @@ const GRADIENT_PRESETS = {
 	grayscale: [[0, 0, 0], [255, 255, 255]],
 	sunset: [[255, 94, 58], [255, 149, 0], [255, 204, 0]],
 	ocean: [[0, 24, 72], [0, 118, 255], [0, 217, 255]],
+	dracula: [[40, 42, 54], [97, 175, 239], [255, 121, 198], [189, 147, 249], [80, 250, 123]],
 	neon: [[57, 255, 20], [0, 255, 255], [255, 0, 255]],
 	forest: [[16, 64, 32], [34, 139, 34], [154, 205, 50]],
 };
@@ -225,14 +251,20 @@ function interpolatePalette(stops, count) {
 	return pal;
 }
 
-export function updatePaletteSwatches() {
+export function updatePaletteSwatches(paletteName) {
 	dom.paletteSwatch.innerHTML = '';
-	const name = dom.paletteSelect?.value || 'grayscale';
+	
+	// If no palette name provided, use the one from mode select (shouldn't happen with new structure)
+	if (!paletteName) {
+		const { palette } = getModeAndPalette(dom.modeSelect.value);
+		paletteName = palette || 'grayscale';
+	}
+	
 	const depth = parseInt(dom.depthSlider.value);
-	const stops = GRADIENT_PRESETS[name];
+	const stops = GRADIENT_PRESETS[paletteName];
 	if (!stops) return;
 	let colors;
-	if (name === 'grayscale') {
+	if (paletteName === 'grayscale') {
 		colors = [];
 		for (let i = 0; i < depth; i++) {
 			const v = Math.round((i / (depth - 1)) * 255);

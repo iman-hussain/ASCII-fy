@@ -1,7 +1,7 @@
 import { dom } from './dom.js';
 import { state, setState } from './state.js';
 import { appendLog, formatBytes } from './utils.js';
-import { estimateBundleBase, updateEstimate } from './ui.js';
+import { estimateBundleBase, updateEstimate, getModeAndPalette } from './ui.js';
 import { getActiveCrop } from './crop-trim.js';
 import { showResults, updateTabSizes } from '../app.js';
 
@@ -75,7 +75,9 @@ export async function startConvert() {
 	dom.logBox.innerHTML = '';
 	dom.resultsArea.classList.remove('active');
 
-	const mode = dom.modeSelect.value;
+	const modeSelection = dom.modeSelect.value;
+	const { mode, palette } = getModeAndPalette(modeSelection);
+	
 	const opts = {
 		inputPath: state.selectedPath,
 		width: parseInt(dom.widthSlider.value),
@@ -84,7 +86,7 @@ export async function startConvert() {
 		mode,
 		charMode: dom.charMode?.value || 'ascii',
 		depth: parseInt(dom.depthSlider.value),
-		palette: dom.paletteSelect?.value || 'grayscale',
+		palette: palette || 'grayscale',
 		fg: dom.fgInput.value,
 		bg: dom.bgInput.value,
 		playerBg: mode === 'mono' ? undefined : 'auto',

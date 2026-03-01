@@ -226,16 +226,32 @@
 						<label for="mode">Colour Mode</label>
 						<div class="control"
 							style="flex-direction: column; align-items: stretch; gap: 8px;">
-							<select id="mode">
+							<select id="mode"
+								title="Choose rendering mode: True Colour uses full 24-bit RGB, Realistic/palettes use curated or extracted colour sets, K-Means adaptively extracts colours from your video, Monochrome uses custom foreground/background.">
 								<option value="truecolor" selected
-									title="High-fidelity 24-bit ANSI colour.">
-									Truecolour</option>
-								<option value="palette">Palette</option>
-								<option value="kmeans">K-Means</option>
-								<option value="mono">Monochrome</option>
+									title="High-fidelity 24-bit ANSI colour (full RGB).">
+									True Colour (default)</option>
+								<option value="realistic"
+									title="Hand-curated palette with film-like colours.">
+									Realistic</option>
 								<option value="grayscale"
-									title="Luminance-based shades of grey.">
-									Greyscale</option>
+									title="Greyscale palette (luminance-based).">
+									Grayscale</option>
+								<option value="sunset"
+									title="Warm sunset tones.">
+									Sunset</option>
+								<option value="ocean"
+									title="Cool ocean tones.">
+									Ocean</option>
+								<option value="dracula"
+									title="Dark theme with purple and pink accents.">
+									Dracula</option>
+								<option value="kmeans"
+									title="ML-based adaptive palette extracted from your video.">
+									K Means</option>
+								<option value="mono"
+									title="Custom foreground and background colours.">
+									Monochrome</option>
 							</select>
 
 							<div id="colourSubOptions" class="hidden"
@@ -250,31 +266,8 @@
 									<span class="range-value"
 										id="qStepVal">24</span>
 								</div>
-								<div id="paletteRow"
-									style="display: flex; flex-direction: column; gap: 4px; width: 100%;"
-									title="Predefined colour sets for stylised output.">
-									<div
-										style="display: flex; align-items: center; gap: 8px; width: 100%;">
-										<span
-											style="font-size: 0.8rem; color: var(--muted); min-width: 108px;">Palette:</span>
-										<select id="palette" style="flex: 1;">
-											<option value="realistic">
-												Realistic</option>
-											<option value="grayscale">
-												Greyscale</option>
-											<option value="sunset">Sunset
-											</option>
-											<option value="ocean">Ocean
-											</option>
-											<option value="neon">Neon
-											</option>
-											<option value="forest">Forest
-											</option>
-										</select>
-									</div>
-									<div class="palette-swatch-bar"
-										id="paletteSwatch"></div>
-								</div>
+								<div class="palette-swatch-bar"
+									id="paletteSwatch"></div>
 								<div class="control" id="depthRow"
 									style="gap:8px; width:100%; align-items:center"
 									title="Maximum unique colours allowed. Higher → better quality; Lower → better compression.">

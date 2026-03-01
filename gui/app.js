@@ -546,7 +546,6 @@ function startLiveAscii(videoEl, containerEl) {
 
 		// ── Build output ──
 		const useTruecolor = colourMode === 'truecolor' || colourMode === 'palette' || colourMode === 'kmeans';
-		const useGray = colourMode === 'grayscale';
 		let html = '';
 
 		for (let y = 0; y < ROWS; y++) {
@@ -565,9 +564,6 @@ function startLiveAscii(videoEl, containerEl) {
 
 				if (useTruecolor) {
 					html += '<span style="color:rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')">' + ch + '</span>';
-				} else if (useGray) {
-					const gray = (r * 0.2126 + g * 0.7152 + b * 0.0722) | 0;
-					html += '<span style="color:rgb(' + gray + ',' + gray + ',' + gray + ')">' + ch + '</span>';
 				} else {
 					// mono — just the character, CSS color handles it
 					html += ch;
