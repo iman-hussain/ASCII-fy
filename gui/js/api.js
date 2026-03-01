@@ -78,7 +78,7 @@ export async function startConvert() {
 	const modeSelection = dom.modeSelect.value;
 	console.log('[startConvert] ===== PALETTE DEBUG START =====');
 	console.log('[startConvert] modeSelection from dropdown:', modeSelection);
-	
+
 	const { mode, palette } = getModeAndPalette(modeSelection);
 	console.log('[startConvert] After getModeAndPalette - mode:', mode, 'palette:', palette);
 
