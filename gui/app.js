@@ -1148,23 +1148,23 @@ function initWebMode() {
 	// --- Hide web-specific features that don't function on web ---
 	// Crop button (requires file processing not available in web)
 	if (dom.toggleCropBtn) dom.toggleCropBtn.parentElement.closest('.row').style.display = 'none';
-	
+
 	// Recording controls (not available in browser context)
 	if (dom.recordStartBtn) dom.recordStartBtn.style.display = 'none';
 	if (dom.recordPauseBtn) dom.recordPauseBtn.style.display = 'none';
 	if (dom.recordStopBtn) dom.recordStopBtn.style.display = 'none';
 	if (dom.recordStatus) dom.recordStatus.style.display = 'none';
 	if (dom.recordTimer) dom.recordTimer.style.display = 'none';
-	
+
 	// Skip GIF checkbox (GIF generation not configurable on web)
 	if (dom.skipGif) dom.skipGif.closest('.row').style.display = 'none';
-	
+
 	// Lock aspect ratio (not applicable for live webcam in web)
 	if (dom.lockAspectChk) dom.lockAspectChk.closest('.row').style.display = 'none';
-	
+
 	// Estimated file sizes (not applicable for web streaming)
 	if (dom.estimateArea) dom.estimateArea.style.display = 'none';
-	
+
 	// Subject isolation / foreground mode (requires WASM model loading not suitable for web)
 	if (dom.fgIsolationRow) dom.fgIsolationRow.style.display = 'none';
 
