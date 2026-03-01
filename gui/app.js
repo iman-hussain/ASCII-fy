@@ -701,13 +701,25 @@ function startLiveAscii(videoEl, containerEl) {
 		const availW = box.width / zoom - padX;
 		const availH = box.height / zoom - padY;
 		if (availW > 0 && availH > 0 && COLS > 0 && ROWS > 0) {
-			// Calculate font size to fit all characters in the container
-			const charWidth = availW / COLS;
-			const charHeight = availH / ROWS;
-			// Characters are roughly 0.6x wide as they are tall in monospace fonts
-			const fontSize = Math.min(charWidth / 0.6, charHeight);
-			_liveAsciiEl.style.fontSize = Math.max(2, fontSize).toFixed(1) + 'px';
-			_liveAsciiEl.style.lineHeight = (charHeight / fontSize).toFixed(3);
+			// Measure actual monospace character aspect ratio using a probe
+			if (!startLiveAscii._charRatio) {
+				const probe = document.createElement('span');
+				probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:16px ' + preStyle.fontFamily + ';letter-spacing:0px;';
+				probe.textContent = 'M';
+				document.body.appendChild(probe);
+				const pr = probe.getBoundingClientRect();
+				startLiveAscii._charRatio = (pr.width / zoom) / (pr.height / zoom) || 0.55;
+				probe.remove();
+			}
+			const charRatio = startLiveAscii._charRatio; // actual width/height
+
+			// Font size constrained by both axes
+			const fsByWidth = availW / (COLS * charRatio);
+			const fsByHeight = availH / ROWS;
+			const fontSize = Math.max(2, Math.min(fsByWidth, fsByHeight));
+			_liveAsciiEl.style.fontSize = fontSize.toFixed(1) + 'px';
+			_liveAsciiEl.style.lineHeight = '1';
+			_liveAsciiEl.style.letterSpacing = '0px';
 		}
 	}
 
