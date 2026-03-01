@@ -619,23 +619,14 @@ function startLiveAscii(videoEl, containerEl) {
 			}
 		}
 
-		// Compute rows to fill the container's visible shape.
-		// On desktop (landscape) this preserves the video aspect ratio;
-		// on mobile portrait it stretches rows to fill the taller box.
-		const cBox = containerEl.getBoundingClientRect();
-		const cZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
-		const cW = cBox.width / cZoom;
-		const cH = cBox.height / cZoom;
-		let ROWS;
-		if (cW > 0 && cH > 0) {
-			// Use container aspect ratio; 0.6 is the char width/height ratio
-			ROWS = Math.max(1, Math.round(COLS * (cH / cW) * 0.6));
-		} else {
-			// Fallback to video aspect ratio
-			const vw = videoEl.videoWidth || 640;
-			const vh = videoEl.videoHeight || 480;
-			ROWS = Math.max(1, Math.round(COLS * (vh / vw) * 0.45));
-		}
+		// Compute rows preserving aspect ratio.
+		// On mobile portrait, use a taller ratio so the ASCII fills the
+		// portrait-shaped preview box instead of appearing square.
+		const vw = videoEl.videoWidth || 640;
+		const vh = videoEl.videoHeight || 480;
+		const isMobilePortrait = window.innerWidth < 800 && window.innerHeight > window.innerWidth;
+		const charAspect = isMobilePortrait ? 0.7 : 0.45; // taller on portrait
+		const ROWS = Math.max(1, Math.round(COLS * (vh / vw) * charAspect));
 		_liveCanvas.width = COLS;
 		_liveCanvas.height = ROWS;
 		_liveCtx.drawImage(videoEl, 0, 0, COLS, ROWS);
