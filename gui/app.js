@@ -556,12 +556,19 @@ function startLiveAscii(videoEl, containerEl) {
 
 	// Setup container — use video aspect ratio so it has a real height
 	// (all children are position:absolute so the container needs intrinsic sizing)
+	// On mobile portrait, flip the aspect ratio so the box is taller than wide.
 	containerEl.style.position = 'relative';
 	containerEl.style.background = '#0a0a0a';
 	containerEl.style.minHeight = '';
 	const setupVw = videoEl.videoWidth || 640;
 	const setupVh = videoEl.videoHeight || 480;
-	containerEl.style.aspectRatio = `${setupVw} / ${setupVh}`;
+	const mobilePortrait = window.innerWidth < 800 && window.innerHeight > window.innerWidth;
+	if (mobilePortrait && setupVw > setupVh) {
+		// Camera reports landscape dims but phone is portrait — flip
+		containerEl.style.aspectRatio = `${setupVh} / ${setupVw}`;
+	} else {
+		containerEl.style.aspectRatio = `${setupVw} / ${setupVh}`;
+	}
 	containerEl.appendChild(_liveCanvas);
 	containerEl.appendChild(_liveAsciiEl);
 	containerEl.appendChild(_livePipEl);
@@ -624,13 +631,15 @@ function startLiveAscii(videoEl, containerEl) {
 		}
 
 		// Compute rows preserving aspect ratio.
-		// On mobile portrait, use a taller ratio so the ASCII fills the
-		// portrait-shaped preview box instead of appearing square.
-		const vw = videoEl.videoWidth || 640;
-		const vh = videoEl.videoHeight || 480;
-		const isMobilePortrait = window.innerWidth < 800 && window.innerHeight > window.innerWidth;
-		const charAspect = isMobilePortrait ? 0.7 : 0.45; // taller on portrait
-		const ROWS = Math.max(1, Math.round(COLS * (vh / vw) * charAspect));
+		// Use the container's displayed aspect ratio (which is already
+		// portrait on mobile) rather than raw video dimensions.
+		const contRect = containerEl.getBoundingClientRect();
+		const contZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+		const contW = contRect.width / contZoom;
+		const contH = contRect.height / contZoom;
+		let displayAR = contW > 0 && contH > 0 ? contH / contW : ((videoEl.videoHeight || 480) / (videoEl.videoWidth || 640));
+		// Char aspect correction: monospace chars are ~1.8x taller than wide
+		const ROWS = Math.max(1, Math.round(COLS * displayAR * 0.5));
 		_liveCanvas.width = COLS;
 		_liveCanvas.height = ROWS;
 		_liveCtx.drawImage(videoEl, 0, 0, COLS, ROWS);
@@ -766,10 +775,14 @@ async function startWebcam() {
 
 	// Request camera only (no audio)
 	let stream;
+	const isMobile = window.innerWidth < 800;
 	try {
-		const constraints = {
-			video: deviceId ? { deviceId: { exact: deviceId } } : true
-		};
+		const videoConstraints = deviceId
+			? { deviceId: { exact: deviceId } }
+			: isMobile
+				? { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } }
+				: true;
+		const constraints = { video: videoConstraints };
 		stream = await navigator.mediaDevices.getUserMedia(constraints);
 	} catch (err) {
 		alert('Could not access webcam: ' + err.message);
