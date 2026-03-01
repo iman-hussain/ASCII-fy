@@ -129,6 +129,7 @@ self.onmessage = async (e) => {
 		abortController = new AbortController();
 		try {
 			console.log('[Worker] Received CONVERT message, loading modules...');
+			console.log('[Worker] Conversion options:', payload.options);
 			await loadModules();
 
 			// Proxy the onFrame callback to send progress back to main thread
@@ -141,7 +142,9 @@ self.onmessage = async (e) => {
 				}
 			};
 
+			console.log('[Worker] About to call convertWeb with mode:', options.mode, 'palette:', options.palette);
 			const result = await convertWeb(options);
+			console.log('[Worker] Conversion complete, result.render:', result.render);
 
 			self.postMessage({ type: 'STATUS', message: 'Packaging Bundle... Please wait' });
 			const bundleData = await generateBundle({

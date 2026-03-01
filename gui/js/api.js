@@ -60,7 +60,12 @@ export async function stopConversion() {
 }
 
 export async function startConvert() {
-	if (!state.selectedPath) return;
+	console.log('[startConvert] ===== CONVERSION STARTED =====');
+	if (!state.selectedPath) {
+		console.log('[startConvert] No file selected, aborting');
+		return;
+	}
+	console.log('[startConvert] Selected file:', state.selectedPath);
 	dom.convertBtn.style.display = 'none';
 	dom.stopBtn.style.display = '';
 	dom.stopBtn.disabled = false;
@@ -131,6 +136,7 @@ export async function startConvert() {
 
 	if (isStandalone()) {
 		// --- WASM Mode ---
+		console.log('[startConvert] Using WASM standalone mode');
 		appendLog("Initializing WebAssembly engine...", "info");
 		const worker = initWasmWorker();
 
@@ -138,11 +144,13 @@ export async function startConvert() {
 		// If we don't have it (e.g. dragged file isn't stored properly), this will fail.
 		// *We must ensure `app.js` stores the raw File object in state.*
 		if (!state.rawFile) {
+			console.log('[startConvert] ERROR: state.rawFile not set');
 			appendLog("Standalone mode requires dragging/dropping a local file.", "error");
 			endConversionUI();
 			return;
 		}
 
+		console.log('[startConvert] Sending to worker - mode:', opts.mode, 'palette:', opts.palette);
 		worker.postMessage({
 			type: 'CONVERT',
 			payload: { file: state.rawFile, options: opts }
@@ -174,6 +182,7 @@ function endConversionUI() {
 // --- WASM Worker Message Handler ---
 function handleWasmMessage(e) {
 	const { type, index, chars, result, error, info, level, message } = e.data;
+	console.log('[handleWasmMessage] Received type:', type);
 
 	// Handle worker console logs
 	if (type === 'LOG') {
@@ -220,6 +229,7 @@ function handleWasmMessage(e) {
 	}
 
 	if (type === 'CONVERT_SUCCESS') {
+		console.log('[handleWasmMessage] CONVERT_SUCCESS - result:', result);
 		appendLog('WASM conversion finished successfully!', 'success');
 
 		const d = {
