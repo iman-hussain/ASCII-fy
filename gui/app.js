@@ -554,10 +554,14 @@ function startLiveAscii(videoEl, containerEl) {
 		_liveCameraSwitchBtn.onclick = switchCamera;
 	}
 
-	// Setup container — fill the preview box fully
+	// Setup container — use video aspect ratio so it has a real height
+	// (all children are position:absolute so the container needs intrinsic sizing)
 	containerEl.style.position = 'relative';
 	containerEl.style.background = '#0a0a0a';
 	containerEl.style.minHeight = '';
+	const setupVw = videoEl.videoWidth || 640;
+	const setupVh = videoEl.videoHeight || 480;
+	containerEl.style.aspectRatio = `${setupVw} / ${setupVh}`;
 	containerEl.appendChild(_liveCanvas);
 	containerEl.appendChild(_liveAsciiEl);
 	containerEl.appendChild(_livePipEl);
@@ -711,6 +715,7 @@ function stopLiveAscii() {
 	// Reset container
 	dom.previewVideoContainer.style.background = '';
 	dom.previewVideoContainer.style.minHeight = '';
+	dom.previewVideoContainer.style.aspectRatio = '';
 	// Restore main video visibility
 	dom.previewVideo.style.opacity = '';
 	dom.previewVideo.style.position = '';
