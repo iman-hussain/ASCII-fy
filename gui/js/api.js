@@ -33,6 +33,22 @@ export function isStandalone() {
 	return standalone;
 }
 
+/**
+ * Detects if the app is running in a standard web browser (not Electron/NW.js/Tauri desktop wrappers).
+ * Used to gate the webcam-only UI on the live web deployment.
+ */
+export function isWebEnvironment() {
+	// Electron detection
+	if (typeof navigator !== 'undefined' && /electron/i.test(navigator.userAgent)) return false;
+	if (typeof process !== 'undefined' && process.versions && process.versions.electron) return false;
+	// NW.js detection
+	if (typeof nw !== 'undefined') return false;
+	// Tauri detection
+	if (typeof window !== 'undefined' && window.__TAURI__) return false;
+	// Standard web browser = standalone (not localhost)
+	return isStandalone();
+}
+
 export async function stopConversion() {
 	if (isStandalone()) {
 		if (wasmWorker) wasmWorker.postMessage({ type: 'ABORT' });

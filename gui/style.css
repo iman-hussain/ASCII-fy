@@ -1073,3 +1073,39 @@ input:checked+.slider:before {
 .hidden {
 	display: none !important;
 }
+
+/* ── Web-only mode (webcam CTA) ─────────────────────── */
+body.web-mode .drop-zone {
+	cursor: pointer;
+	padding: 48px 20px;
+	border: 2px dashed var(--accent);
+	border-radius: var(--radius);
+	transition: background .2s, border-color .2s;
+}
+
+body.web-mode .drop-zone:hover {
+	background: rgba(0, 232, 123, .07);
+	border-color: var(--accent-hover);
+}
+
+body.web-mode .drop-zone .icon {
+	font-size: 3rem;
+	animation: pulse-webcam 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-webcam {
+	0%, 100% { transform: scale(1); opacity: 1; }
+	50%      { transform: scale(1.08); opacity: .85; }
+}
+
+body.web-mode .drop-zone .label:first-of-type {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	margin-top: 4px;
+}
+
+body.web-mode .drop-zone .label:last-of-type {
+	font-size: .82rem;
+	color: var(--muted);
+}

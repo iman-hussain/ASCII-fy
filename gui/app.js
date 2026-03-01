@@ -1,7 +1,7 @@
 import { dom } from './js/dom.js';
 import { state, resetState, setState } from './js/state.js';
 import { formatBytes, appendLog, interceptConsole } from './js/utils.js';
-import { startConvert, stopConversion, isStandalone } from './js/api.js';
+import { startConvert, stopConversion, isStandalone, isWebEnvironment } from './js/api.js';
 import {
 	updateEstimate, updateResolution, makeEditable, updateModeFields,
 	updateForegroundFields, applyPreviewBg, resetPreviewBg,
@@ -1081,12 +1081,18 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 });
 
 // Action logic
-dom.convertBtn.addEventListener('click', startConvert);
-dom.stopBtn.addEventListener('click', stopConversion);
 dom.webcamBtn.addEventListener('click', startWebcam);
 dom.recordStartBtn.addEventListener('click', startRecording);
 dom.recordPauseBtn.addEventListener('click', togglePause);
 dom.recordStopBtn.addEventListener('click', stopRecording);
+
+// Web-mode: webcam-only UI; Desktop: full file-processing UI
+if (isWebEnvironment()) {
+	initWebMode();
+} else {
+	dom.convertBtn.addEventListener('click', startConvert);
+	dom.stopBtn.addEventListener('click', stopConversion);
+}
 dom.undoBtn.addEventListener('click', () => {
 	if (!state.gifHistory.length) return;
 	const prev = state.gifHistory.pop();
@@ -1098,3 +1104,107 @@ dom.undoBtn.addEventListener('click', () => {
 	if (state.lastConvertResult) showResults(state.lastConvertResult);
 	dom.undoBtn.disabled = state.gifHistory.length === 0;
 });
+
+/* ── Web-Only Mode (webcam CTA, no file upload) ───────────── */
+function initWebMode() {
+	document.body.classList.add('web-mode');
+
+	// --- Hide file upload elements ---
+	dom.fileInput.classList.add('hidden');
+	dom.inputSelect.closest('div').style.display = 'none';
+	// Hide the "— or —" divider between dropdown and webcam button
+	const orDividers = dom.dropZone.querySelectorAll('div');
+	orDividers.forEach(d => {
+		if (d.textContent.trim() === '— or —') d.style.display = 'none';
+	});
+
+	// --- Re-skin drop zone as webcam CTA ---
+	const iconEl = dom.dropZone.querySelector('.icon');
+	const labelEls = dom.dropZone.querySelectorAll('.label');
+	if (iconEl) iconEl.textContent = '📷';
+	if (labelEls[0]) labelEls[0].textContent = 'Click anywhere to activate your webcam';
+	if (labelEls[1]) labelEls[1].textContent = 'Live ASCII preview — record & convert';
+	// Hide the separate webcam button (drop zone IS the trigger now)
+	dom.webcamBtn.classList.add('hidden');
+
+	// Bind the entire drop zone to start the webcam
+	dom.dropZone.addEventListener('click', (e) => {
+		// Prevent the hidden file input from intercepting
+		if (e.target === dom.fileInput) { e.preventDefault(); return; }
+		handleWebcamActivation();
+	});
+
+	// --- Convert button → Open GitHub ---
+	dom.convertBtn.textContent = '⭐ Open GitHub';
+	dom.convertBtn.disabled = false;
+	dom.convertBtn.addEventListener('click', () => {
+		window.open('https://github.com/iman-hussain/ASCII-fy', '_blank');
+	});
+
+	// Prevent other code paths (probeFile, resetFileSelection) from disabling our GitHub button
+	const _btnObserver = new MutationObserver(() => {
+		if (dom.convertBtn.disabled) dom.convertBtn.disabled = false;
+	});
+	_btnObserver.observe(dom.convertBtn, { attributes: true, attributeFilter: ['disabled'] });
+
+	// Stop button is unused in web mode
+	dom.stopBtn.classList.add('hidden');
+
+	// Disable drag-and-drop file handling in web mode
+	dom.previewContent.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
+	dom.previewContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
+}
+
+/** Attempt to start webcam with user-friendly error handling */
+async function handleWebcamActivation() {
+	const iconEl = dom.dropZone.querySelector('.icon');
+	const labelEls = dom.dropZone.querySelectorAll('.label');
+
+	// Reset any previous error state (supports retry)
+	if (iconEl) iconEl.textContent = '📷';
+	if (labelEls[0]) {
+		labelEls[0].textContent = 'Activating webcam…';
+		labelEls[0].style.color = '';
+	}
+	if (labelEls[1]) labelEls[1].textContent = '';
+
+	// Check for camera API support
+	if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+		if (iconEl) iconEl.textContent = '⚠️';
+		if (labelEls[0]) {
+			labelEls[0].textContent = 'Camera not supported in this browser';
+			labelEls[0].style.color = 'var(--danger)';
+		}
+		if (labelEls[1]) labelEls[1].textContent = 'Try Chrome, Firefox, or Edge on a device with a camera';
+		return;
+	}
+
+	try {
+		// Briefly test camera access before handing off to startWebcam()
+		const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
+		testStream.getTracks().forEach(t => t.stop());
+		startWebcam();
+	} catch (err) {
+		if (iconEl) iconEl.textContent = '🚫';
+		if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+			if (labelEls[0]) {
+				labelEls[0].textContent = 'Camera access was denied';
+				labelEls[0].style.color = 'var(--danger)';
+			}
+			if (labelEls[1]) labelEls[1].textContent = 'Enable camera permissions in your browser settings, then click here to retry';
+		} else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+			if (labelEls[0]) {
+				labelEls[0].textContent = 'No camera detected';
+				labelEls[0].style.color = 'var(--danger)';
+			}
+			if (labelEls[1]) labelEls[1].textContent = 'Connect a webcam and click here to retry';
+		} else {
+			if (labelEls[0]) {
+				labelEls[0].textContent = 'Could not access camera: ' + err.message;
+				labelEls[0].style.color = 'var(--danger)';
+			}
+			if (labelEls[1]) labelEls[1].textContent = 'Click to retry';
+		}
+		// Allow retry — clicking the drop zone will call this function again
+	}
+}
