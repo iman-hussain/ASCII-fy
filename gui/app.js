@@ -524,6 +524,7 @@ let _liveCanvas = null;
 let _liveCtx = null;
 let _liveAsciiEl = null;
 let _livePipEl = null;
+let _liveCameraSwitchBtn = null;
 
 function startLiveAscii(videoEl, containerEl) {
 	// Hidden capture canvas
@@ -544,6 +545,15 @@ function startLiveAscii(videoEl, containerEl) {
 	_livePipEl.autoplay = true;
 	_livePipEl.play().catch(() => { });
 
+	// Camera switch button overlay (only if multiple cameras)
+	if (state.availableCameras && state.availableCameras.length > 1) {
+		_liveCameraSwitchBtn = document.createElement('button');
+		_liveCameraSwitchBtn.className = 'camera-switch-overlay';
+		_liveCameraSwitchBtn.innerHTML = '🔄';
+		_liveCameraSwitchBtn.title = 'Switch camera';
+		_liveCameraSwitchBtn.onclick = switchCamera;
+	}
+
 	// Setup container
 	containerEl.style.position = 'relative';
 	containerEl.style.background = '#0a0a0a';
@@ -551,6 +561,9 @@ function startLiveAscii(videoEl, containerEl) {
 	containerEl.appendChild(_liveCanvas);
 	containerEl.appendChild(_liveAsciiEl);
 	containerEl.appendChild(_livePipEl);
+	if (_liveCameraSwitchBtn) {
+		containerEl.appendChild(_liveCameraSwitchBtn);
+	}
 
 	// Hide the main video — the ASCII pre IS the preview now
 	videoEl.style.opacity = '0';
@@ -681,6 +694,7 @@ function stopLiveAscii() {
 	if (_liveAsciiEl) { _liveAsciiEl.remove(); _liveAsciiEl = null; }
 	if (_liveCanvas) { _liveCanvas.remove(); _liveCanvas = null; }
 	if (_livePipEl) { _livePipEl.srcObject = null; _livePipEl.remove(); _livePipEl = null; }
+	if (_liveCameraSwitchBtn) { _liveCameraSwitchBtn.remove(); _liveCameraSwitchBtn = null; }
 	_liveCtx = null;
 	// Reset container
 	dom.previewVideoContainer.style.background = '';
@@ -760,20 +774,16 @@ async function startWebcam() {
 	dom.fileHeader.classList.add('hidden');
 	dom.previewTabs.classList.add('hidden');
 
-	// Show webcam bar when there are multiple cameras (desktop or web)
-	// In web mode, only show if multiple cameras are available
+	// Show webcam bar (desktop mode only - web uses overlay button)
 	if (!isWebEnvironment()) {
 		dom.webcamBar.classList.remove('hidden');
-	} else if (videoDevices.length > 1) {
-		dom.webcamBar.classList.remove('hidden');
-	}
-
-	// Show/hide camera switch button based on available cameras
-	if (videoDevices.length > 1) {
-		dom.switchCameraBtn.style.display = '';
-		dom.switchCameraBtn.disabled = false;
-	} else {
-		dom.switchCameraBtn.style.display = 'none';
+		// Show/hide camera switch button in webcam bar based on available cameras
+		if (videoDevices.length > 1) {
+			dom.switchCameraBtn.style.display = '';
+			dom.switchCameraBtn.disabled = false;
+		} else {
+			dom.switchCameraBtn.style.display = 'none';
+		}
 	}
 
 	dom.recordStartBtn.disabled = false;
@@ -1306,7 +1316,7 @@ function initWebMode() {
 	// Subject isolation / foreground mode (requires WASM model loading not suitable for web)
 	if (dom.fgIsolationRow) dom.fgIsolationRow.style.display = 'none';
 
-	// Webcam bar starts hidden, will be shown by startWebcam() if multiple cameras available
+	// Webcam bar stays hidden in web mode (we use overlay button instead)
 	if (dom.webcamBar) dom.webcamBar.classList.add('hidden');
 
 	// Trim controls (not applicable for live webcam)

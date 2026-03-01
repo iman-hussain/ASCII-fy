@@ -1060,6 +1060,37 @@ input:checked+.slider:before {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+/* Camera switch button overlay (top-right corner) */
+.camera-switch-overlay {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	z-index: 20;
+	background: rgba(0, 0, 0, 0.7);
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	border-radius: 6px;
+	padding: 8px 12px;
+	cursor: pointer;
+	font-size: 1.2rem;
+	color: #fff;
+	backdrop-filter: blur(4px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+	pointer-events: auto;
+	transition: all 0.2s;
+	opacity: 0.85;
+}
+
+.camera-switch-overlay:hover {
+	opacity: 1;
+	background: rgba(0, 232, 123, 0.2);
+	border-color: var(--accent);
+	transform: scale(1.05);
+}
+
+.camera-switch-overlay:active {
+	transform: scale(0.95);
+}
+
 /* Full-area ASCII pre overlay */
 .live-ascii-pre {
 	position: absolute;
@@ -1075,9 +1106,6 @@ input:checked+.slider:before {
 	overflow: hidden;
 	z-index: 10;
 	pointer-events: none;
-	display: flex;
-	align-items: center;
-	justify-content: center;
 }
 
 /* Mobile optimization for live preview */
