@@ -617,10 +617,10 @@ function formatDuration(sec) {
 }
 
 async function startWebcam() {
-	// Request camera + microphone
+	// Request camera only (no audio)
 	let stream;
 	try {
-		stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+		stream = await navigator.mediaDevices.getUserMedia({ video: true });
 	} catch (err) {
 		alert('Could not access webcam: ' + err.message);
 		return;
@@ -1167,6 +1167,18 @@ function initWebMode() {
 
 	// Subject isolation / foreground mode (requires WASM model loading not suitable for web)
 	if (dom.fgIsolationRow) dom.fgIsolationRow.style.display = 'none';
+
+	// Webcam bar (not needed for live preview)
+	if (dom.webcamBar) dom.webcamBar.classList.add('hidden');
+
+	// Trim controls (not applicable for live webcam)
+	const trimRows = document.querySelectorAll('.row');
+	trimRows.forEach(row => {
+		const label = row.querySelector('label');
+		if (label && label.textContent.trim() === 'Trim') {
+			row.style.display = 'none';
+		}
+	});
 
 	// Disable drag-and-drop file handling in web mode
 	dom.previewContent.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
