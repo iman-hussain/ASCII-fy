@@ -641,8 +641,10 @@ async function startWebcam() {
 	dom.fileHeader.classList.add('hidden');
 	dom.previewTabs.classList.add('hidden');
 
-	// Show webcam bar
-	dom.webcamBar.classList.remove('hidden');
+	// Show webcam bar (but not on web mode)
+	if (!isWebEnvironment()) {
+		dom.webcamBar.classList.remove('hidden');
+	}
 	dom.recordStartBtn.disabled = false;
 	dom.recordPauseBtn.disabled = true;
 	dom.recordPauseBtn.style.display = 'none';
