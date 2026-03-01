@@ -148,6 +148,7 @@ let converting = false;
 let currentAbort = null;   // AbortController for the active conversion
 
 async function runConversion(opts) {
+	console.log('[server] ===== PALETTE DEBUG START =====');
 	console.log('[server] runConversion started with opts:', JSON.stringify(opts));
 	if (converting) {
 		console.warn('[server] Conversion already in progress.');
@@ -178,14 +179,18 @@ async function runConversion(opts) {
 		} = opts;
 		let foreground = _fgRaw;
 
+		console.log('[server] Received from client - _mode:', _mode, '_palette:', _palette);
+
 		// Normalize grayscale mode to palette mode (legacy support)
 		let mode = _mode;
 		let palette = _palette;
 		if (mode === 'grayscale') {
+			console.log('[server] Legacy grayscale mode detected, converting to palette mode');
 			mode = 'palette';
 			palette = 'grayscale';
 		}
 
+		console.log('[server] After normalization - mode:', mode, 'palette:', palette);
 		broadcast('log', { msg: 'Probing video…' });
 		console.log('[server] Probing video:', inputPath);
 		let meta;
@@ -224,6 +229,8 @@ async function runConversion(opts) {
 		/* Build render config */
 		broadcast('log', { msg: 'Building configuration…' });
 		let render, tone;
+
+		console.log('[server] Building render config for mode:', mode, 'palette:', palette);
 
 		if (mode === 'mono') {
 			render = {

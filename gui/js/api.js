@@ -76,7 +76,11 @@ export async function startConvert() {
 	dom.resultsArea.classList.remove('active');
 
 	const modeSelection = dom.modeSelect.value;
+	console.log('[startConvert] ===== PALETTE DEBUG START =====');
+	console.log('[startConvert] modeSelection from dropdown:', modeSelection);
+	
 	const { mode, palette } = getModeAndPalette(modeSelection);
+	console.log('[startConvert] After getModeAndPalette - mode:', mode, 'palette:', palette);
 
 	const opts = {
 		inputPath: state.selectedPath,
@@ -101,7 +105,8 @@ export async function startConvert() {
 		qStep: parseInt(dom.qStepSlider?.value ?? 24)
 	};
 
-	console.log('[startConvert] Mode selection:', modeSelection, '-> mode:', mode, 'palette:', palette);
+	console.log('[startConvert] Final opts.mode:', opts.mode, 'opts.palette:', opts.palette);
+	console.log('[startConvert] ===== PALETTE DEBUG END =====');
 	console.log('[startConvert] Full options:', opts);
 
 	setState('lastConvertOptions', {
