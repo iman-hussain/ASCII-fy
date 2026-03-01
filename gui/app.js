@@ -677,11 +677,20 @@ function startLiveAscii(videoEl, containerEl) {
 		_liveAsciiEl.innerHTML = html;
 
 		// Auto-fit font size to show full camera view
+		// getBoundingClientRect returns screen-px (includes CSS zoom), but
+		// font-size is set in CSS-px which the browser zooms again — divide
+		// out the zoom so we size for the CSS-px coordinate space.
+		const zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
 		const box = containerEl.getBoundingClientRect();
-		if (box.width > 0 && box.height > 0 && COLS > 0 && ROWS > 0) {
+		const preStyle = getComputedStyle(_liveAsciiEl);
+		const padX = parseFloat(preStyle.paddingLeft) + parseFloat(preStyle.paddingRight);
+		const padY = parseFloat(preStyle.paddingTop) + parseFloat(preStyle.paddingBottom);
+		const availW = box.width / zoom - padX;
+		const availH = box.height / zoom - padY;
+		if (availW > 0 && availH > 0 && COLS > 0 && ROWS > 0) {
 			// Calculate font size to fit all characters in the container
-			const charWidth = box.width / COLS;
-			const charHeight = box.height / ROWS;
+			const charWidth = availW / COLS;
+			const charHeight = availH / ROWS;
 			// Characters are roughly 0.6x wide as they are tall in monospace fonts
 			const fontSize = Math.min(charWidth / 0.6, charHeight);
 			_liveAsciiEl.style.fontSize = Math.max(2, fontSize * 0.95).toFixed(1) + 'px';

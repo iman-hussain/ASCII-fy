@@ -83,12 +83,27 @@ body {
 	margin-top: 2px;
 }
 
+@media (max-width: 800px) {
+	.header {
+		padding: 6px 10px 4px;
+	}
+
+	.header h1 {
+		font-size: 0.95rem;
+	}
+
+	.header .subtitle {
+		font-size: 0.7rem;
+		margin-top: 0;
+	}
+}
+
 /* ── Two-column layout ──────────────────────────────── */
 .app {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: 3fr 2fr;
 	gap: 24px;
-	max-width: 1100px;
+	max-width: 1200px;
 	margin: 0 auto;
 	padding: 0 24px 48px;
 	align-items: start;
@@ -1133,7 +1148,7 @@ input:checked+.slider:before {
 	.preview-box {
 		margin: 0;
 		overflow-y: auto;
-		max-height: 80vh;
+		max-height: 42vh;
 	}
 
 	.preview-video,
@@ -1146,8 +1161,14 @@ input:checked+.slider:before {
 	}
 
 	.preview-col {
-		position: static;
-		top: auto;
+		position: sticky;
+		top: 0;
+		z-index: 50;
+		background: var(--bg);
+		padding-top: 4px;
+		padding-bottom: 4px;
+		max-height: 45vh;
+		overflow-y: auto;
 	}
 }
 
@@ -1193,8 +1214,8 @@ body.web-mode .drop-zone .label:last-of-type {
 
 /* ── Web-mode: Scaled UI for better preview visibility ─── */
 body.web-mode {
-	/* Desktop already at 150%, web-mode keeps it the same */
-	zoom: 150%;
+	/* Desktop already at 180%, web-mode keeps it the same */
+	zoom: 180%;
 }
 
 /* Reset zoom on mobile for web-mode */
