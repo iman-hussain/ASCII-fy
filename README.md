@@ -4,7 +4,7 @@
 | ------------------------------ | ------------------------ |
 | ![Original](docs/original.gif) | ![ASCII](docs/ascii.gif) |
 
-**ASCII-fi** is a high-performance video-to-ASCII conversion engine. It features a lightweight resource footprint and is optimised for both visual fidelity and storage efficiency. With support for real-time bundle size estimation, automatic vertical video orientation, and high-precision colour quantisation, ASCII-fi transforms any video into stunning, portable ASCII animations for the web or terminal.
+**ASCII-fi** is a high-performance video and image-to-ASCII conversion engine. It features a lightweight resource footprint and is optimised for both visual fidelity and storage efficiency. With support for real-time bundle size estimation, automatic vertical video orientation, and high-precision colour quantisation, ASCII-fi transforms any video or still image into stunning, portable ASCII animations (or static art) for the web or terminal.
 
 It operates seamlessly as a **Standalone Interactive CLI/GUI** and as a **Programmatic NPM Library**, allowing for flexible standalone consumption or direct integrations inside your backend environments.
 
@@ -49,6 +49,8 @@ ASCII-fi ships with an integrated local Web UI enabling real-time tweaks and liv
 2. **Windows**: Run `start.bat`
 3. **macOS/Linux**: Run `./start.sh`
 
+The GUI supports both videos (.mp4, .webm, .gif, .mov, .avi, .mkv) and still images (.png, .jpg, .jpeg, .webp, .bmp, .tiff). When you upload an image, the FPS and trim controls are automatically hidden since they don't apply to still frames.
+
 ---
 
 ## 🖥️ CLI Usage
@@ -86,8 +88,9 @@ node scripts/ascii-player.js output/dog/bundle.js
 | Web Player Bundle (JS) | ✅ | ✅ | ✅ |
 | GIF Preview | ✅ | ✅ | ✅ |
 | Webcam Input | ✅ | ✅ | ✅ |
-| File Upload | ❌ | ✅ | ✅ |
-| Trimming (Start/End) | ❌ | ✅ | ✅ |
+| Video Upload | ❌ | ✅ | ✅ |
+| Image Upload | ❌ | ✅ | ✅ |
+| Trimming (Start/End) | ❌ | ✅ (video only) | ✅ (video only) |
 | Subject Isolation (ML) | ❌ | ✅ | ✅ |
 | Terminal Playback | ❌ | ✅ | ✅ |
 | Cropping | ❌ | ✅ | ✅ |

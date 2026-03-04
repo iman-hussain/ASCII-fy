@@ -26,6 +26,8 @@ export const dom = new Proxy({}, {
 			dropZone: '#dropZone',
 			fileInput: '#fileInput',
 			previewVideo: '#previewVideo',
+			previewImage: '#previewImage',
+			asciiPreview: '#asciiPreview',
 			previewGif: '#previewGif',
 			webcamBar: '#webcamBar',
 			webcamBtn: '#webcamBtn',

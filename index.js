@@ -34,21 +34,27 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import cliProgress from 'cli-progress';
 import { generateBundle, hexToRgbArray } from './lib/api.js';
-import { probeVideo } from './lib/converter.js';
+import { probeVideo, probeImage } from './lib/converter.js';
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.gif', '.avi', '.mkv', '.flv']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff', '.tif']);
+const MEDIA_EXTENSIONS = new Set([...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function scanForVideos(dir) {
+async function scanForMediaFiles(dir) {
 	try {
 		const entries = await readdir(dir, { withFileTypes: true });
 		return entries
-			.filter((e) => e.isFile() && VIDEO_EXTENSIONS.has(extname(e.name).toLowerCase()))
+			.filter((e) => e.isFile() && MEDIA_EXTENSIONS.has(extname(e.name).toLowerCase()))
 			.map((e) => e.name);
 	} catch {
 		return [];
 	}
+}
+
+function isImageFile(filePath) {
+	return IMAGE_EXTENSIONS.has(extname(filePath).toLowerCase());
 }
 
 async function ensureIoDirs(baseDir) {
@@ -152,24 +158,24 @@ function parseCliArgs(argv) {
 
 function printHelp() {
 	console.log(`
-  ASCII-fi – Video → ASCII Art CLI
+  ASCII-fi – Video/Image → ASCII Art CLI
 
   Usage:
     node index.js                              Interactive mode
     node index.js <file> [options]             Fast CLI mode
 
   Options:
-    <file>                  Path to video file (positional)
+    <file>                  Path to video or image file (positional)
     -w, --width  <n>        Output width in characters    (default: 100)
-    -f, --fps    <n>        Frame rate                    (default: 24)
+    -f, --fps    <n>        Frame rate (video only)       (default: 24)
     -m, --mode   <mode>     truecolor | mono | palette | kmeans
     -d, --depth  <n>        Palette colours: 2–64 (any number)
     -p, --palette <name>    realistic | grayscale | sunset | ocean | neon | forest
         --fg <hex>          Foreground for mono mode      (default: #00ff00)
         --bg <hex|auto>     Player background colour       (default: #000000)
     -g, --char-mode <mode>  Character mode: ascii | block  (default: ascii)
-    -s, --start  <sec>      Trim start
-    -e, --end    <sec>      Trim end
+    -s, --start  <sec>      Trim start (video only)
+    -e, --end    <sec>      Trim end (video only)
         --brightness <int>  Manual brightness override (-100 to 100)
         --contrast <int>    Manual contrast override (-100 to 100)
         --no-gif            Skip GIF generation
@@ -180,6 +186,7 @@ function printHelp() {
 
   Examples:
     node index.js input/dog.mp4 --mode truecolor
+    node index.js input/photo.png -w 120 -m palette -d 16 -p sunset
     node index.js input/dog.mp4 -w 120 -f 30 -m palette -d 16 -p sunset
     node index.js input/dog.mp4 -m kmeans -d 32
     node index.js input/dog.mp4 -m mono --fg "#0f0" --bg "#000"
@@ -264,19 +271,21 @@ async function runFromCLI(cli) {
 
 	const callbacks = makeCallbacks(cli.noOpen);
 
+	const isImage = isImageFile(inputPath);
+
 	try {
 		const result = await generateBundle({
 			inputFile: inputPath,
 			outDir: outputDir,
 			width: cli.width || 100,
-			fps: cli.fps || 24,
+			fps: isImage ? undefined : (cli.fps || 24),
 			mode: cli.mode || 'truecolor',
 			depth: cli.depth || 16,
 			palette: cli.palette || 'realistic',
 			fg: cli.fg || '#00ff00',
 			bg: cli.bg || '#000000',
-			start: cli.start ?? undefined,
-			end: cli.end ?? undefined,
+			start: isImage ? undefined : cli.start,
+			end: isImage ? undefined : cli.end,
 			charMode: cli.charMode === 'block' ? 'block' : 'ascii',
 			detail: cli.detail,
 			outlineOnly: cli.outlineOnly,
@@ -297,7 +306,7 @@ async function runInteractive() {
 	const cwd = process.cwd();
 	const { inputDir: defaultInputDir, outputDir: defaultOutputDir } = await ensureIoDirs(cwd);
 
-	const videos = await scanForVideos(defaultInputDir);
+	const videos = await scanForMediaFiles(defaultInputDir);
 
 	let inputChoices;
 	if (videos.length > 0) {
@@ -314,13 +323,13 @@ async function runInteractive() {
 		{
 			type: 'list',
 			name: 'inputFile',
-			message: 'Select a video file:',
+			message: 'Select a media file (video or image):',
 			choices: inputChoices,
 		},
 		{
 			type: 'input',
 			name: 'customPath',
-			message: 'Enter the full path to the video:',
+			message: 'Enter the full path to the media file:',
 			when: (ans) => ans.inputFile === '__custom__',
 			validate: async (val) => {
 				try {
@@ -377,79 +386,131 @@ async function runInteractive() {
 	]);
 
 	const inputPath = answers.customPath || answers.inputFile;
-	const outputWidth = answers.outputWidth;
-	const outputFps = answers.outputFps;
-	let charMode = answers.charMode || 'ascii';
-	let detail = typeof answers.detail === 'number' ? answers.detail : 100;
+	const isImage = isImageFile(inputPath);
 
-	let meta;
-	try {
-		meta = await probeVideo(inputPath);
-	} catch (err) {
-		console.log(`\n  ⚠  Unable to probe video metadata: ${err.message}`);
-		meta = { fps: 24, duration: undefined };
-	}
-	const durationLabel = formatSeconds(meta.duration);
-
+	// Only ask for fps and trim for videos
+	let outputFps = 24;
 	let startTime;
 	let endTime;
-	let wantTrim;
+	let charMode = 'ascii';
+	let detail = 100;
 
-	while (true) {
-		const trimAnswers = await inquirer.prompt([
-			{
-				type: 'confirm',
-				name: 'trim',
-				message: `Trim to a segment? (duration: ${durationLabel})`,
-				default: false,
-			},
+	if (!isImage) {
+		const videoAnswers = await inquirer.prompt([
 			{
 				type: 'input',
-				name: 'startTime',
-				message: 'Start time (seconds):',
-				default: 0,
-				when: (ans) => ans.trim,
-				validate: (val) => validateSecondsInput(val, { min: 0, max: meta.duration }),
-				filter: (val) => Number(val),
-			},
-			{
-				type: 'input',
-				name: 'endTime',
-				message: 'End time (seconds):',
-				default: meta.duration ? Math.floor(meta.duration) : 10,
-				when: (ans) => ans.trim,
-				validate: (val, ans) => {
-					const base = validateSecondsInput(val, { min: 0, max: meta.duration });
-					if (base !== true) return base;
-					const endVal = Number(val);
-					const startVal = Number(ans.startTime);
-					if (Number.isFinite(startVal) && endVal <= startVal) return 'End time must be greater than start time.';
+				name: 'outputFps',
+				message: 'Output frame rate (fps) [recommended: 24/30/42/60]:',
+				default: 24,
+				validate: (val) => {
+					const num = Number(val);
+					if (!Number.isFinite(num)) return 'Please enter a valid number.';
+					if (num < 1 || num > 120) return 'Please enter a value between 1 and 120.';
 					return true;
 				},
 				filter: (val) => Number(val),
 			},
 		]);
-
-		wantTrim = trimAnswers.trim;
-		startTime = trimAnswers.startTime;
-		endTime = trimAnswers.endTime;
-
-		if (!wantTrim) break;
-
-		const confirmTrim = await inquirer.prompt([
-			{
-				type: 'confirm',
-				name: 'ok',
-				message: `Use trim segment ${startTime}s → ${endTime}s?`,
-				default: true,
-			},
-		]);
-
-		if (confirmTrim.ok) break;
+		outputFps = videoAnswers.outputFps;
 	}
 
-	startTime = wantTrim ? startTime : undefined;
-	endTime = wantTrim ? endTime : undefined;
+	const modeAnswers = await inquirer.prompt([
+		{
+			type: 'list',
+			name: 'charMode',
+			message: 'Character mode:',
+			choices: [
+				{ name: 'ASCII (edge-aware shapes: / \\ | _ - L J)', value: 'ascii' },
+				{ name: 'Block (█▓▒░ solid colour cells)', value: 'block' },
+			],
+		},
+		{
+			type: 'input',
+			name: 'detail',
+			message: 'Detail level (0=edges only, 100=full fill):',
+			default: 100,
+			when: (ans) => ans.charMode === 'ascii',
+			validate: (val) => {
+				const num = Number(val);
+				if (!Number.isFinite(num)) return 'Please enter a valid number.';
+				if (num < 0 || num > 100) return 'Value must be between 0 and 100.';
+				return true;
+			},
+			filter: (val) => Number(val),
+		},
+	]);
+
+	charMode = modeAnswers.charMode || 'ascii';
+	detail = typeof modeAnswers.detail === 'number' ? modeAnswers.detail : 100;
+
+	const outputWidth = answers.outputWidth;
+
+	let meta;
+	try {
+		meta = isImage ? await probeImage(inputPath) : await probeVideo(inputPath);
+	} catch (err) {
+		console.log(`\n  ⚠  Unable to probe ${isImage ? 'image' : 'video'} metadata: ${err.message}`);
+		meta = { fps: 24, duration: undefined };
+	}
+
+	// Only ask for trim if it's a video
+	if (!isImage) {
+		const durationLabel = formatSeconds(meta.duration);
+		let wantTrim;
+
+		while (true) {
+			const trimAnswers = await inquirer.prompt([
+				{
+					type: 'confirm',
+					name: 'trim',
+					message: `Trim to a segment? (duration: ${durationLabel})`,
+					default: false,
+				},
+				{
+					type: 'input',
+					name: 'startTime',
+					message: 'Start time (seconds):',
+					default: 0,
+					when: (ans) => ans.trim,
+					validate: (val) => validateSecondsInput(val, { min: 0, max: meta.duration }),
+					filter: (val) => Number(val),
+				},
+				{
+					type: 'input',
+					name: 'endTime',
+					message: 'End time (seconds):',
+					default: meta.duration ? Math.floor(meta.duration) : 10,
+					when: (ans) => ans.trim,
+					validate: (val, ans) => {
+						const base = validateSecondsInput(val, { min: 0, max: meta.duration });
+						if (base !== true) return base;
+						const endVal = Number(val);
+						const startVal = Number(ans.startTime);
+						if (Number.isFinite(startVal) && endVal <= startVal) return 'End time must be greater than start time.';
+						return true;
+					},
+					filter: (val) => Number(val),
+				},
+			]);
+
+			wantTrim = trimAnswers.trim;
+			startTime = trimAnswers.startTime;
+			endTime = trimAnswers.endTime;
+
+			if (!wantTrim) break;
+
+			const confirmTrim = await inquirer.prompt([
+				{
+					type: 'confirm',
+					name: 'ok',
+					message: `Use trim segment ${startTime}s → ${endTime}s?`,
+					default: true,
+				},
+			]);
+
+			if (confirmTrim.ok) break;
+		}
+	}
 
 	let renderOpts = {
 		mode: 'truecolor'
@@ -630,7 +691,7 @@ async function main() {
 
 	console.log('\n  ╔═══════════════════════════╗');
 	console.log('  ║   ASCII-fi  v1.1.0        ║');
-	console.log('  ║   Video → ASCII Art CLI    ║');
+	console.log('  ║   Media → ASCII Art CLI   ║');
 	console.log('  ╚═══════════════════════════╝\n');
 
 	if (hasCLIFile) {

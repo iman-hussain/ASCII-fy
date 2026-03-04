@@ -174,7 +174,9 @@ export async function startConvert() {
 function endConversionUI() {
 	setState('isConverting', false);
 	setState('conversionStartTime', null);
-	dom.convertBtn.style.display = '';
+	// Keep convert button hidden for still images
+	const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+	dom.convertBtn.style.display = isImage ? 'none' : '';
 	dom.stopBtn.style.display = 'none';
 	dom.convertBtn.disabled = false;
 }

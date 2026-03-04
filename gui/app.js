@@ -16,6 +16,29 @@ import {
 interceptConsole();
 
 /* ── Core File Initialization ────────────────────────────────────────── */
+function isImageFile(pathOrFile) {
+	const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff', '.tif'];
+	const name = typeof pathOrFile === 'string' ? pathOrFile : pathOrFile?.name || '';
+	const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+	return IMAGE_EXTENSIONS.includes(ext);
+}
+
+function updateControlsForMediaType(isImage) {
+	// Hide/show FPS control
+	const fpsRow = Array.from(document.querySelectorAll('.row')).find(row => {
+		const label = row.querySelector('label[for="fps"]');
+		return label && label.textContent.trim() === 'FPS';
+	});
+	if (fpsRow) fpsRow.style.display = isImage ? 'none' : '';
+
+	// Hide/show Trim control
+	const trimRow = Array.from(document.querySelectorAll('.row')).find(row => {
+		const label = row.querySelector('label');
+		return label && label.textContent.trim() === 'Trim';
+	});
+	if (trimRow) trimRow.style.display = isImage ? 'none' : '';
+}
+
 export async function probeFile(pathOrFile) {
 	// Guard against null or undefined input
 	if (!pathOrFile) {
@@ -24,6 +47,10 @@ export async function probeFile(pathOrFile) {
 		dom.convertBtn.disabled = true;
 		return false;
 	}
+
+	// Update UI based on file type
+	const isImage = isImageFile(pathOrFile);
+	updateControlsForMediaType(isImage);
 
 	if (isStandalone() && pathOrFile instanceof File) {
 		// --- WASM Probe ---
@@ -96,6 +123,7 @@ export async function probeFile(pathOrFile) {
 					clampSlidersToSource();
 					updateInfoBar('original');
 					updateEstimate();
+					requestImagePreviewUpdate(); // Trigger ASCII preview for images
 					dom.convertBtn.disabled = false;
 					worker.terminate();
 					resolve(true);
@@ -142,7 +170,24 @@ export async function probeFile(pathOrFile) {
 			clampSlidersToSource();
 			updateInfoBar('original');
 			updateEstimate();
-			dom.convertBtn.disabled = false;
+			requestImagePreviewUpdate(); // Trigger ASCII preview for images
+
+			// For images, hide convert button and show tabs automatically
+			const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+			if (isImage) {
+				dom.convertBtn.style.display = 'none';
+				updatePreviewTabLabel(true);
+				dom.previewTabs.classList.remove('hidden');
+				// Tabs start disabled — conversion will enable them
+				dom.tabConvertedGif.disabled = true;
+				dom.tabConvertedBundle.disabled = true;
+				// Auto-trigger conversion for still images
+				setTimeout(() => startConvert(), 200);
+			} else {
+				dom.convertBtn.style.display = '';
+				updatePreviewTabLabel(false);
+				dom.convertBtn.disabled = false;
+			}
 			return true;
 		} catch {
 			setState('videoMeta', null);
@@ -153,7 +198,6 @@ export async function probeFile(pathOrFile) {
 
 async function selectFromDropdown(name) {
 	resetState();
-	showFileSelected(name);
 	setState('selectedPath', name);
 
 	const resolved = await probeFile(name);
@@ -163,72 +207,83 @@ async function selectFromDropdown(name) {
 		return;
 	}
 
+	const isImage = isImageFile(name);
+	showFileSelected(name);
+
 	dom.previewVideoContainer.classList.remove('hidden');
-	dom.previewVideo.src = '/api/video?path=' + encodeURIComponent(state.selectedPath);
-	dom.previewVideo.classList.remove('hidden');
-	dom.previewVideo.play().catch(() => { });
+
+	if (isImage) {
+		// Show image preview
+		dom.previewImage.src = '/api/video?path=' + encodeURIComponent(state.selectedPath);
+		dom.previewImage.classList.remove('hidden');
+		dom.previewVideo.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+	} else {
+		// Show video preview
+		dom.previewVideo.src = '/api/video?path=' + encodeURIComponent(state.selectedPath);
+		dom.previewVideo.classList.remove('hidden');
+		dom.previewImage.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+		dom.previewVideo.play().catch(() => { });
+	}
 	dom.dropZone.classList.add('hidden');
-	syncTrimSlidersToInputs();
+	if (!isImage) syncTrimSlidersToInputs();
+	requestImagePreviewUpdate();
 }
 
-async function handleFile(file, forceUpload) {
-	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-	if (file.size > MAX_FILE_SIZE) {
-		appendLog(`File too large. Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB (file is ${(file.size / 1024 / 1024).toFixed(1)}MB)`, 'error');
-		dom.logArea.classList.add('active');
-		return;
-	}
-
+async function handleFile(file) {
 	resetState();
-	setState('videoFileSize', file.size);
-	setState('rawFile', file); // Store for WASM usage
 	showFileSelected(file.name);
+	setState('rawFile', file);
 
+	const isImage = isImageFile(file);
 	let blobUrl = URL.createObjectURL(file);
 	setState('blobUrl', blobUrl);
-	dom.previewVideo.src = blobUrl;
+	setState('selectedPath', file.name);
 	dom.previewVideoContainer.classList.remove('hidden');
-	dom.previewVideo.classList.remove('hidden');
-	dom.previewVideo.load();
-	dom.previewVideo.play().catch(() => { });
+
+	if (isImage) {
+		// Show image preview
+		dom.previewImage.src = blobUrl;
+		dom.previewImage.classList.remove('hidden');
+		dom.previewVideo.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+	} else {
+		// Show video preview
+		dom.previewVideo.src = blobUrl;
+		dom.previewVideo.classList.remove('hidden');
+		dom.previewImage.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+		dom.previewVideo.load();
+		dom.previewVideo.play().catch(() => { });
+	}
 	dom.dropZone.classList.add('hidden');
 
-	if (isStandalone()) {
-		// In standalone mode, we can only probe via WASM using the raw file.
-		await probeFile(file);
-		return;
-	}
-
-	let resolved = false;
-	if (!forceUpload) {
-		resolved = await probeFile(file.name);
-	}
-
-	if (!resolved) {
-		try {
-			const upRes = await fetch('/api/upload', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/octet-stream',
-					'X-Filename': encodeURIComponent(file.name),
-				},
-				body: file,
-			});
-			const upData = await upRes.json();
-			if (upData.ok && upData.resolvedPath) {
-				setState('selectedPath', upData.resolvedPath);
-				await probeFile(state.selectedPath);
-			} else if (!upData.ok) {
-				appendLog('Upload failed: ' + (upData.error || 'Unknown error'), 'error');
-				dom.logArea.classList.add('active');
-			} else {
-				appendLog('Upload error: server did not return file path', 'error');
-				dom.logArea.classList.add('active');
-			}
-		} catch (err) {
-			appendLog('Upload error: ' + err.message, 'error');
+	// Upload the file to server
+	try {
+		const upRes = await fetch('/api/upload', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/octet-stream',
+				'X-Filename': encodeURIComponent(file.name),
+			},
+			body: file,
+		});
+		const upData = await upRes.json();
+		if (upData.ok && upData.resolvedPath) {
+			setState('selectedPath', upData.resolvedPath);
+			await probeFile(state.selectedPath);
+			// Image tab setup and auto-conversion handled by probeFile()
+		} else if (!upData.ok) {
+			appendLog('Upload failed: ' + (upData.error || 'Unknown error'), 'error');
+			dom.logArea.classList.add('active');
+		} else {
+			appendLog('Upload error: server did not return file path', 'error');
 			dom.logArea.classList.add('active');
 		}
+	} catch (err) {
+		appendLog('Upload error: ' + err.message, 'error');
+		dom.logArea.classList.add('active');
 	}
 }
 
@@ -237,9 +292,17 @@ function showFileSelected(name) {
 	dom.fileName.textContent = name;
 	dom.dropZone.classList.add('hidden');
 	dom.previewGif.classList.add('hidden');
-	dom.previewTabs.classList.add('hidden');
+	// Don't hide tabs here — let probeFile decide based on file type
 	dom.tabConvertedGif.disabled = true;
 	dom.tabConvertedBundle.disabled = true;
+}
+
+function updatePreviewTabLabel(isImage) {
+	const label = isImage ? 'preview.png' : 'preview.gif';
+	const title = isImage ? 'PNG preview of ASCII art' : 'GIF preview of ASCII art';
+	// Update only the text node, preserving the span for tab size
+	dom.tabConvertedGif.childNodes[0].textContent = label;
+	dom.tabConvertedGif.title = title;
 }
 
 function resetFileSelection() {
@@ -248,6 +311,8 @@ function resetFileSelection() {
 	dom.previewTabs.classList.add('hidden');
 	dom.previewVideoContainer.classList.add('hidden');
 	dom.previewVideo.classList.add('hidden');
+	dom.previewImage.classList.add('hidden');
+	dom.asciiPreview.classList.add('hidden');
 	dom.cropBox.classList.add('hidden');
 	dom.previewGif.classList.add('hidden');
 	dom.dropZone.classList.remove('hidden');
@@ -258,9 +323,13 @@ function resetFileSelection() {
 	resetPreviewBg();
 	resetSliderMaxes();
 	updateTabSizes();
+	updatePreviewTabLabel(false); // Reset to "preview.gif"
+	dom.convertBtn.style.display = ''; // Show convert button
 	dom.convertBtn.disabled = true;
 	dom.inputSelect.value = '';
 	dom.previewVideo.src = '';
+	dom.previewImage.src = '';
+	dom.asciiPreview.innerHTML = '';
 	dom.tabOriginal.classList.add('active');
 	dom.tabConvertedGif.classList.remove('active');
 	dom.tabConvertedGif.disabled = true;
@@ -271,6 +340,8 @@ function resetFileSelection() {
 	dom.bundleIframe.src = 'about:blank';
 	dom.bundleViewer.innerHTML = '<span class="bundle-viewer-empty">No bundle yet.</span>';
 	stopWebcam();
+	// Reset controls visibility (show all for next file)
+	updateControlsForMediaType(false);
 }
 
 function clampSlidersToSource() {
@@ -358,17 +429,43 @@ function updateInfoBar(tab) {
 		else if (d.totalFrames && d.fps) dom.infoDuration.textContent = (d.totalFrames / d.fps).toFixed(2) + 's';
 		// Clear any stale aspect-ratio override — the GIF pixel dimensions are already correct
 		dom.previewGif.style.aspectRatio = '';
+		// Hide video-specific info for still images
+		const isImageConvert = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+		if (isImageConvert) {
+			dom.infoFps.parentElement.style.display = 'none';
+			dom.infoDuration.parentElement.style.display = 'none';
+			dom.infoFrames.parentElement.style.display = 'none';
+		} else {
+			dom.infoFps.parentElement.style.display = '';
+			dom.infoDuration.parentElement.style.display = '';
+			dom.infoFrames.parentElement.style.display = '';
+		}
 	} else if (state.videoMeta) {
 		dom.infoBar.classList.remove('hidden');
 		const sar = state.videoMeta.sar || 1;
 		const visW = Math.round(state.videoMeta.width * sar);
 		dom.infoDims.textContent = visW + '×' + state.videoMeta.height;
-		if (state.videoMeta.fps) dom.infoFps.textContent = state.videoMeta.fps.toFixed(1);
-		if (state.videoMeta.duration) {
-			const sec = state.videoMeta.duration;
-			dom.infoDuration.textContent = sec.toFixed(2) + 's';
-			if (state.videoMeta.fps) {
-				dom.infoFrames.textContent = Math.round(sec * state.videoMeta.fps).toLocaleString();
+
+		// Check if this is a still image (fps=1, duration=0)
+		const isImage = state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+
+		if (isImage) {
+			// For images, hide video-specific info
+			dom.infoFps.parentElement.style.display = 'none';
+			dom.infoDuration.parentElement.style.display = 'none';
+			dom.infoFrames.parentElement.style.display = 'none';
+		} else {
+			// For videos, show video-specific info
+			dom.infoFps.parentElement.style.display = '';
+			dom.infoDuration.parentElement.style.display = '';
+			dom.infoFrames.parentElement.style.display = '';
+			if (state.videoMeta.fps) dom.infoFps.textContent = state.videoMeta.fps.toFixed(1);
+			if (state.videoMeta.duration) {
+				const sec = state.videoMeta.duration;
+				dom.infoDuration.textContent = sec.toFixed(2) + 's';
+				if (state.videoMeta.fps) {
+					dom.infoFrames.textContent = Math.round(sec * state.videoMeta.fps).toLocaleString();
+				}
 			}
 		}
 		dom.infoSize.textContent = state.videoFileSize ? formatBytes(state.videoFileSize) : '—';
@@ -389,6 +486,83 @@ export function updateTabSizes() {
 		dom.tabBundleSize.textContent = '';
 	}
 }
+
+/* ── Live ASCII Preview for Images ────────────────────────────────── */
+let _imagePreviewDebounceTimer = null;
+
+async function updateImagePreview() {
+	// Only run if we have an image loaded
+	const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+	if (!isImage || !state.selectedPath) {
+		console.debug('[Preview] Skipping: isImage=', isImage, 'path=', state.selectedPath);
+		return;
+	}
+
+	console.debug('[Preview] Updating ASCII preview for', state.selectedPath);
+
+	// Collect current parameters
+	const width = parseInt(dom.widthSlider.value) || 80;
+	const height = parseInt(dom.heightSlider.value) || 60;
+	const modeSelection = dom.modeSelect?.value || 'truecolor';
+	const { mode, palette } = getModeAndPalette(modeSelection);
+	const depth = parseInt(dom.depthSlider?.value) || 16;
+	const charMode = dom.charMode?.value || 'ascii';
+	const fg = dom.fgInput?.value || '#00ff00';
+	const bg = dom.bgInput?.value || '#000000';
+	const brightness = parseInt(dom.brightSlider?.value) || 0;
+	const contrast = parseInt(dom.contrastSlider?.value) || 0;
+	const detail = parseInt(dom.detailSlider?.value) || 100;
+
+	try {
+		console.debug('[Preview] Fetching with params: width=' + width + ', mode=' + mode);
+		const resp = await fetch('/api/preview-frame', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				inputPath: state.selectedPath,
+				width,
+				height,
+				mode,
+				palette,
+				depth,
+				charMode,
+				fg,
+				bg,
+				customTone: brightness !== 0 || contrast !== 0 ? { brightness, contrast } : null,
+				detail,
+				time: 0  // Images only have one frame at time 0
+			})
+		});
+
+		if (!resp.ok) {
+			console.error('[Preview] HTTP error:', resp.status, resp.statusText);
+			const text = await resp.text();
+			console.error('[Preview] Response:', text);
+			return;
+		}
+
+		const data = await resp.json();
+		if (data.ok && data.html) {
+			console.debug('[Preview] Received HTML, updating display');
+			// Show ASCII preview and hide original image
+			dom.asciiPreview.innerHTML = data.html;
+			dom.asciiPreview.classList.remove('hidden');
+			dom.previewImage.classList.add('hidden');
+			dom.previewVideo.classList.add('hidden');
+		} else {
+			console.error('[Preview] Invalid response:', data);
+		}
+	} catch (err) {
+		console.error('[Preview] Error:', err);
+	}
+}
+
+function requestImagePreviewUpdate() {
+	// Debounce to avoid too many API calls
+	if (_imagePreviewDebounceTimer) clearTimeout(_imagePreviewDebounceTimer);
+	_imagePreviewDebounceTimer = setTimeout(updateImagePreview, 300);
+}
+
 export function showResults(d) {
 	dom.resultsArea.classList.add('active');
 	dom.resultActions.innerHTML = '';
@@ -1086,22 +1260,22 @@ makeEditable(dom.trimStartVal, dom.trimStartSlider, { step: 0.1 });
 makeEditable(dom.trimEndVal, dom.trimEndSlider, { step: 0.1 });
 makeEditable(dom.qStepValEl, dom.qStepSlider);
 
-dom.widthSlider.oninput = () => syncResolution('width');
-dom.heightSlider.oninput = () => syncResolution('height');
+dom.widthSlider.oninput = () => { syncResolution('width'); requestImagePreviewUpdate(); };
+dom.heightSlider.oninput = () => { syncResolution('height'); requestImagePreviewUpdate(); };
 dom.lockAspectChk.onchange = () => {
 	if (dom.lockAspectChk.checked) syncResolution('width');
 };
 
 dom.fpsSlider.oninput = () => { dom.fpsVal.textContent = dom.fpsSlider.value; updateEstimate(); };
 dom.qStepSlider.oninput = () => { dom.qStepValEl.textContent = dom.qStepSlider.value; updateEstimate(); };
-dom.depthSlider.oninput = () => { dom.depthValEl.textContent = dom.depthSlider.value; updateEstimate(); };
-dom.brightSlider.oninput = () => { dom.brightVal.textContent = dom.brightSlider.value; updateVideoFilters(); };
-dom.contrastSlider.oninput = () => { dom.contrastVal.textContent = dom.contrastSlider.value; updateVideoFilters(); };
-dom.detailSlider.oninput = () => { dom.detailVal.textContent = dom.detailSlider.value; updateEstimate(); };
+dom.depthSlider.oninput = () => { dom.depthValEl.textContent = dom.depthSlider.value; updateEstimate(); requestImagePreviewUpdate(); };
+dom.brightSlider.oninput = () => { dom.brightVal.textContent = dom.brightSlider.value; updateVideoFilters(); requestImagePreviewUpdate(); };
+dom.contrastSlider.oninput = () => { dom.contrastVal.textContent = dom.contrastSlider.value; updateVideoFilters(); requestImagePreviewUpdate(); };
+dom.detailSlider.oninput = () => { dom.detailVal.textContent = dom.detailSlider.value; updateEstimate(); requestImagePreviewUpdate(); };
 dom.fgMode.onchange = updateForegroundFields;
 dom.fgThreshold.oninput = () => { dom.fgThresholdVal.textContent = dom.fgThreshold.value; };
-dom.fgInput.oninput = () => { dom.fgValEl.textContent = dom.fgInput.value; };
-dom.bgInput.oninput = () => { dom.bgValEl.textContent = dom.bgInput.value; };
+dom.fgInput.oninput = () => { dom.fgValEl.textContent = dom.fgInput.value; requestImagePreviewUpdate(); };
+dom.bgInput.oninput = () => { dom.bgValEl.textContent = dom.bgInput.value; requestImagePreviewUpdate(); };
 dom.fgBgInput.oninput = () => { dom.fgBgVal.textContent = dom.fgBgInput.value; };
 
 dom.rawJsToggle.addEventListener('click', () => {
@@ -1114,8 +1288,8 @@ dom.rawJsToggle.addEventListener('click', () => {
 });
 dom.fgBackground.onchange = updateForegroundFields;
 
-dom.modeSelect.onchange = () => { updateModeFields(); updateEstimate(); };
-dom.charMode.onchange = () => { updateModeFields(); updateEstimate(); };
+dom.modeSelect.onchange = () => { updateModeFields(); updateEstimate(); requestImagePreviewUpdate(); };
+dom.charMode.onchange = () => { updateModeFields(); updateEstimate(); requestImagePreviewUpdate(); };
 
 // Trim bind
 dom.trimStartInp.addEventListener('input', () => { syncTrimInputsToSliders(); updateEstimate(); dom.trimStartVal.textContent = parseFloat(dom.trimStartSlider.value).toFixed(1); });
@@ -1187,11 +1361,24 @@ dom.tabOriginal.addEventListener('click', () => {
 	dom.tabConvertedBundle.classList.remove('active');
 	dom.previewContent.classList.remove('bundle-active');
 	dom.previewVideoContainer.classList.remove('hidden');
-	dom.previewVideo.classList.remove('hidden');
+
+	// Show appropriate preview based on file type
+	const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+	if (isImage) {
+		// For images, show the original image
+		dom.previewImage.classList.remove('hidden');
+		dom.previewVideo.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+	} else {
+		dom.previewVideo.classList.remove('hidden');
+		dom.previewImage.classList.add('hidden');
+		dom.asciiPreview.classList.add('hidden');
+		dom.previewVideo.play().catch(() => { });
+	}
+
 	dom.previewGif.classList.add('hidden');
 	dom.bundleViewer.classList.add('hidden');
 	dom.bundleIframe.classList.add('hidden');
-	dom.previewVideo.play().catch(() => { });
 	updateInfoBar('original');
 	dom.resultsArea.classList.remove('active');
 	resetPreviewBg();
@@ -1199,18 +1386,41 @@ dom.tabOriginal.addEventListener('click', () => {
 	if (dom.rawJsToggle) { dom.rawJsToggle.setAttribute('aria-pressed', 'false'); dom.showRawJsChk.checked = false; }
 });
 dom.tabConvertedGif.addEventListener('click', () => {
-	if (!state.convertedGifBlob) return;
-	dom.tabConvertedGif.classList.add('active');
-	dom.tabOriginal.classList.remove('active');
-	dom.tabConvertedBundle.classList.remove('active');
-	dom.previewContent.classList.remove('bundle-active');
-	dom.previewGif.classList.remove('hidden');
+	const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+
+	// Validate we have content to show
+	if (isImage) {
+		if (!state.convertedGifBlob && !dom.asciiPreview.innerHTML) return;
+	} else {
+		if (!state.convertedGifBlob) return;
+	}
+
+	// Hide everything first
 	dom.previewVideoContainer.classList.add('hidden');
 	dom.previewVideo.classList.add('hidden');
+	dom.previewImage.classList.add('hidden');
+	dom.previewGif.classList.add('hidden');
+	dom.asciiPreview.classList.add('hidden');
 	dom.cropBox.classList.add('hidden');
 	dom.bundleViewer.classList.add('hidden');
 	dom.bundleIframe.classList.add('hidden');
 	dom.previewVideo.pause();
+
+	// Then show the correct preview
+	if (state.convertedGifBlob) {
+		// After conversion: show rendered image (transparent GIF)
+		dom.previewGif.classList.remove('hidden');
+	} else if (isImage && dom.asciiPreview.innerHTML) {
+		// Before conversion completes: show HTML ASCII preview
+		dom.asciiPreview.classList.remove('hidden');
+	} else {
+		dom.previewGif.classList.remove('hidden');
+	}
+
+	dom.tabConvertedGif.classList.add('active');
+	dom.tabOriginal.classList.remove('active');
+	dom.tabConvertedBundle.classList.remove('active');
+	dom.previewContent.classList.remove('bundle-active');
 	updateInfoBar('converted');
 	if (state.lastConvertResult) dom.resultsArea.classList.add('active');
 	dom.showRawJsBox.classList.add('hidden');
@@ -1224,6 +1434,8 @@ dom.tabConvertedBundle.addEventListener('click', async () => {
 	dom.tabConvertedGif.classList.remove('active');
 	dom.previewContent.classList.add('bundle-active');
 	dom.previewVideo.classList.add('hidden');
+	dom.previewImage.classList.add('hidden');
+	dom.asciiPreview.classList.add('hidden');
 	dom.previewGif.classList.add('hidden');
 	dom.previewVideo.pause();
 	if (state.lastConvertResult) dom.resultsArea.classList.add('active');

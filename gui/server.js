@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import ffmpeg from 'ffmpeg-static';
 
-import { convert, probeVideo } from '../lib/converter.js';
+import { convert, probeVideo, probeImage } from '../lib/converter.js';
 import { createBundleWriter } from '../lib/bundler.js';
 import { createAsciiGifWriter } from '../lib/gif.js';
 import { makeGradientPalette, makeGrayscalePalette, makeRealisticPalette } from '../lib/render.js';
@@ -101,6 +101,7 @@ function buildOutputName(inputPath, { mode, depth, palette, width, fps, charMode
 /* ── Active SSE connections ────────────────────────────────────────── */
 
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.gif', '.mov', '.avi', '.mkv', '.flv']);
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff', '.tif']);
 
 /**
  * Resolve a video path – accepts:
@@ -269,7 +270,7 @@ async function runConversion(opts) {
 		} else {
 			render = {
 				mode: 'truecolor', palette: null, charMode,
-				theme: { fg: '#111', bg: resolvedBg }, label: 'Truecolor (source)'
+				theme: { fg: fg || '#00ff00', bg: resolvedBg }, label: 'Truecolor (source)'
 			};
 
 			tone = inputExt === '.gif'
@@ -453,7 +454,7 @@ async function handler(req, res) {
 			return;
 		}
 
-		/* API: probe video – accepts full path or just a filename (searches input/) */
+		/* API: probe video or image – accepts full path or just a filename */
 		if (url.pathname === '/api/probe' && req.method === 'POST') {
 			const body = await readBody(req);
 			try {
@@ -466,7 +467,13 @@ async function handler(req, res) {
 					});
 					return;
 				}
-				const meta = await probeVideo(resolved);
+				let meta;
+				const ext = extname(resolved).toLowerCase();
+				if (IMAGE_EXTS.has(ext)) {
+					meta = await probeImage(resolved);
+				} else {
+					meta = await probeVideo(resolved);
+				}
 				let fileSize = 0;
 				try { fileSize = (await stat(resolved)).size; } catch { }
 				json(res, { ok: true, resolvedPath: resolved, meta, fileSize });

@@ -32,22 +32,26 @@ export function updateResolution() {
 }
 
 export function updateEstimate() {
-	if (!dom.widthSlider || !dom.heightSlider || !dom.fpsSlider || !dom.modeSelect) return;
+	if (!dom.widthSlider || !dom.heightSlider || !dom.modeSelect) return;
 
 	const w = parseInt(dom.widthSlider.value);
 	const h = parseInt(dom.heightSlider.value);
-	const fps = parseInt(dom.fpsSlider.value);
 	const mode = dom.modeSelect.value;
 	const depth = parseInt(dom.depthSlider?.value) || 16;
 	const qStep = parseInt(dom.qStepSlider?.value) || 24;
 	const detail = parseInt(dom.detailSlider?.value) || 100;
 
-	// Default to a typical 10s video if no meta is loaded so that sliders update instantly anyway
-	const dur = state.videoMeta ? (state.videoMeta.duration || 10) : 10;
-	const trimS = parseFloat(dom.trimStartInp?.value) || 0;
-	const trimE = parseFloat(dom.trimEndInp?.value) || dur;
-	const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
-	const frames = Math.max(1, Math.round(effDur * fps));
+	// Check if current file is an image (single frame)
+	const isImage = state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+	const frames = isImage ? 1 : (() => {
+		if (!dom.fpsSlider) return 1;
+		const fps = parseInt(dom.fpsSlider.value);
+		const dur = state.videoMeta ? (state.videoMeta.duration || 10) : 10;
+		const trimS = parseFloat(dom.trimStartInp?.value) || 0;
+		const trimE = parseFloat(dom.trimEndInp?.value) || dur;
+		const effDur = Math.max(0.5, Math.min(trimE, dur) - trimS);
+		return Math.max(1, Math.round(effDur * fps));
+	})();
 
 	const base = estimateBundleBase({ w, h, frames, mode, depth, qStep, detail });
 	const est = Math.round(base * state.estimateScale);

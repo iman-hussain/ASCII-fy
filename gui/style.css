@@ -392,12 +392,31 @@ body {
 }
 
 .preview-video,
-.preview-gif {
+.preview-gif,
+.preview-image {
 	width: 100%;
 	height: auto;
 	max-height: 520px;
 	object-fit: contain;
 	display: block;
+}
+
+.ascii-preview {
+	font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+	font-size: 8px;
+	line-height: 1;
+	letter-spacing: 0px;
+	white-space: pre;
+	overflow: auto;
+	margin: 0;
+	padding: 12px;
+	max-height: 520px;
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--bg);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
 }
 
 .info-bar {
@@ -1152,7 +1171,8 @@ input:checked+.slider:before {
 	}
 
 	.preview-video,
-	.preview-gif {
+	.preview-gif,
+	.preview-image {
 		max-height: none;
 		height: auto;
 		width: 100%;

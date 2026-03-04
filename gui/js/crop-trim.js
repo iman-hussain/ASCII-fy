@@ -3,22 +3,125 @@ import { state, setState } from './state.js';
 import { appendLog } from './utils.js';
 import { probeFile } from '../app.js'; // circular bind to orchestrator for file load
 
+/**
+ * Determine if the loaded media is a still image (not a video/GIF).
+ * Uses state.videoMeta rather than DOM visibility to be reliable.
+ */
+function isMediaImage() {
+	return state.videoMeta && state.videoMeta.fps === 1 && state.videoMeta.duration === 0;
+}
+
+/**
+ * Get the visible media element that the crop box should overlay.
+ * Ensures the element is actually visible and has measurable dimensions.
+ * For images, we must show the actual <img> (not the ASCII preview).
+ * For videos/GIFs, we use the <video> element.
+ */
+function getVisibleMediaEl() {
+	if (isMediaImage()) {
+		return dom.previewImage;
+	}
+	return dom.previewVideo;
+}
+
+/**
+ * Ensure the correct media element is visible for cropping.
+ * For images, we swap back from ASCII preview to the actual image
+ * so the crop overlay has something to position against.
+ */
+function ensureMediaVisibleForCrop() {
+	if (isMediaImage()) {
+		// Show the actual image, hide ASCII preview during crop
+		dom.previewImage.classList.remove('hidden');
+		dom.asciiPreview.classList.add('hidden');
+		dom.previewVideo.classList.add('hidden');
+		dom.previewVideoContainer.classList.remove('hidden');
+	} else {
+		// For video/GIF, ensure video is visible
+		dom.previewVideo.classList.remove('hidden');
+		dom.previewImage.classList.add('hidden');
+		dom.previewVideoContainer.classList.remove('hidden');
+	}
+}
+
+/**
+ * Restore the media display when exiting crop mode.
+ * For images, swap back to ASCII preview if it was previously shown.
+ */
+function restoreMediaAfterCrop() {
+	if (isMediaImage()) {
+		// If there's an ASCII preview available, show it and hide the image
+		if (dom.asciiPreview.innerHTML && dom.asciiPreview.innerHTML.length > 0) {
+			dom.asciiPreview.classList.remove('hidden');
+			dom.previewImage.classList.add('hidden');
+		}
+	}
+}
+
 export async function toggleCrop() {
 	setState('isCropping', !state.isCropping);
 
 	if (state.isCropping) {
+		// Ensure the real media element is visible so we can measure it
+		ensureMediaVisibleForCrop();
 		dom.cropBox.classList.remove('hidden');
-		dom.previewVideo.pause();
+
+		if (!isMediaImage()) {
+			dom.previewVideo.pause();
+		}
+
+		// Wait for the media element to have dimensions
+		const mediaEl = getVisibleMediaEl();
+		await waitForMediaReady(mediaEl);
+
+		// Wait one frame for the layout to settle before positioning
+		await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 		syncCropInputsToBox();
 		dom.toggleCropBtn.textContent = '❌ Cancel Crop';
 		dom.toggleCropBtn.style.background = 'var(--danger)';
 		dom.toggleCropBtn.style.color = '#fff';
 	} else {
 		dom.cropBox.classList.add('hidden');
+		restoreMediaAfterCrop();
 		dom.toggleCropBtn.textContent = '✂️ Toggle Crop Bounds';
 		dom.toggleCropBtn.style.background = 'var(--surface)';
 		dom.toggleCropBtn.style.color = '';
 	}
+}
+
+/**
+ * Wait until a media element (img or video) has valid intrinsic dimensions.
+ * Returns immediately if already ready. Times out after 3 seconds.
+ */
+function waitForMediaReady(el) {
+	return new Promise(resolve => {
+		const check = () => {
+			if (el.tagName === 'IMG') {
+				return el.naturalWidth > 0 && el.naturalHeight > 0;
+			}
+			// Video element
+			return el.videoWidth > 0 && el.videoHeight > 0;
+		};
+
+		if (check()) { resolve(); return; }
+
+		const timeout = setTimeout(() => { cleanup(); resolve(); }, 3000);
+		const event = el.tagName === 'IMG' ? 'load' : 'loadedmetadata';
+
+		const onReady = () => {
+			if (check()) { cleanup(); resolve(); }
+		};
+		const cleanup = () => {
+			clearTimeout(timeout);
+			el.removeEventListener(event, onReady);
+			el.removeEventListener('loadeddata', onReady);
+		};
+
+		el.addEventListener(event, onReady);
+		if (el.tagName === 'VIDEO') {
+			el.addEventListener('loadeddata', onReady);
+		}
+	});
 }
 
 export function getActiveCrop() {
@@ -31,30 +134,62 @@ export function getActiveCrop() {
 	return { w, h, x: x || 0, y: y || 0 };
 }
 
+/**
+ * Get the CSS zoom factor applied to the body.
+ * getBoundingClientRect() returns viewport coords (post-zoom),
+ * but CSS style.left/top/width/height are in the local CSS
+ * coordinate space (pre-zoom). We must divide by zoom when
+ * converting viewport measurements to CSS style values.
+ */
+function getZoom() {
+	return parseFloat(getComputedStyle(document.body).zoom) || 1;
+}
+
 export function syncCropInputsToBox() {
 	if (!state.isCropping || !state.videoMeta || !state.videoMeta.width || !state.videoMeta.height) return;
 
-	const intrinsicW = dom.previewVideo.videoWidth || state.videoMeta.width;
-	const intrinsicH = dom.previewVideo.videoHeight || state.videoMeta.height;
-
-	const rect = dom.previewVideo.getBoundingClientRect();
 	const container = dom.previewVideoContainer.getBoundingClientRect();
+	if (!container.width || !container.height) return;
+
+	// Use state to determine media type, not DOM visibility
+	const imgMode = isMediaImage();
+	const mediaEl = getVisibleMediaEl();
+	const mediaRect = mediaEl.getBoundingClientRect();
+	if (!mediaRect.width || !mediaRect.height) return;
+
+	// Compensate for CSS zoom: viewport coords → CSS coords
+	const zoom = getZoom();
+
+	const intrinsicW = (imgMode ? mediaEl.naturalWidth : mediaEl.videoWidth) || state.videoMeta.width;
+	const intrinsicH = (imgMode ? mediaEl.naturalHeight : mediaEl.videoHeight) || state.videoMeta.height;
 	const vRatio = intrinsicW / intrinsicH;
-	const cRatio = rect.width / rect.height;
 
-	let renderW = rect.width;
-	let renderH = rect.height;
+	// Compute the actual rendered content area within the media element
+	// (object-fit: contain may leave letterbox/pillarbox gaps, and <video>
+	// controls consume vertical space that shifts the content upward)
+	let renderW, renderH;
+	const elRatio = mediaRect.width / mediaRect.height;
+	if (vRatio > elRatio) {
+		// Video is wider than element → full width, letterboxed vertically
+		renderW = mediaRect.width;
+		renderH = mediaRect.width / vRatio;
+	} else {
+		// Video is taller than element → full height, pillarboxed horizontally
+		renderH = mediaRect.height;
+		renderW = mediaRect.height * vRatio;
+	}
 
-	if (vRatio > cRatio) { renderH = rect.width / vRatio; }
-	else { renderW = rect.height * vRatio; }
+	// Content is centered within the media element's box
+	const contentLeft = mediaRect.left + (mediaRect.width - renderW) / 2;
+	const contentTop = mediaRect.top + (mediaRect.height - renderH) / 2;
 
-	const innerOffsetX = (rect.width - renderW) / 2;
-	const innerOffsetY = (rect.height - renderH) / 2;
-	const videoLeftInContainer = rect.left - container.left;
-	const videoTopInContainer = rect.top - container.top;
+	// Offset in viewport pixels, then convert to CSS pixels (÷ zoom)
+	const offsetX = (contentLeft - container.left) / zoom;
+	const offsetY = (contentTop - container.top) / zoom;
 
-	const scaleX = renderW / state.videoMeta.width;
-	const scaleY = renderH / state.videoMeta.height;
+	// Scale: intrinsic pixels → CSS pixels (viewport scale ÷ zoom)
+	const scaleX = renderW / state.videoMeta.width / zoom;
+	const scaleY = renderH / state.videoMeta.height / zoom;
 
 	let w = parseFloat(dom.cropWInp.value) || state.videoMeta.width;
 	let h = parseFloat(dom.cropHInp.value) || state.videoMeta.height;
@@ -63,35 +198,47 @@ export function syncCropInputsToBox() {
 
 	dom.cropBox.style.width = (w * scaleX) + 'px';
 	dom.cropBox.style.height = (h * scaleY) + 'px';
-	dom.cropBox.style.left = (videoLeftInContainer + innerOffsetX + x * scaleX) + 'px';
-	dom.cropBox.style.top = (videoTopInContainer + innerOffsetY + y * scaleY) + 'px';
+	dom.cropBox.style.left = (offsetX + x * scaleX) + 'px';
+	dom.cropBox.style.top = (offsetY + y * scaleY) + 'px';
 }
 
 export function syncBoxToCropInputs() {
 	if (!state.videoMeta || !state.videoMeta.width || !state.videoMeta.height) return;
-	const intrinsicW = dom.previewVideo.videoWidth || state.videoMeta.width;
-	const intrinsicH = dom.previewVideo.videoHeight || state.videoMeta.height;
 
-	const rect = dom.previewVideo.getBoundingClientRect();
-	const box = dom.cropBox.getBoundingClientRect();
 	const container = dom.previewVideoContainer.getBoundingClientRect();
+	if (!container.width || !container.height) return;
 
+	// Use state to determine media type, not DOM visibility
+	const imgMode = isMediaImage();
+	const mediaEl = getVisibleMediaEl();
+	const mediaRect = mediaEl.getBoundingClientRect();
+	if (!mediaRect.width || !mediaRect.height) return;
+
+	const intrinsicW = (imgMode ? mediaEl.naturalWidth : mediaEl.videoWidth) || state.videoMeta.width;
+	const intrinsicH = (imgMode ? mediaEl.naturalHeight : mediaEl.videoHeight) || state.videoMeta.height;
 	const vRatio = intrinsicW / intrinsicH;
-	const cRatio = rect.width / rect.height;
-	let renderW = rect.width;
-	let renderH = rect.height;
-	if (vRatio > cRatio) { renderH = rect.width / vRatio; } else { renderW = rect.height * vRatio; }
 
-	const innerOffsetX = (rect.width - renderW) / 2;
-	const innerOffsetY = (rect.height - renderH) / 2;
-	const videoLeftInContainer = rect.left - container.left;
-	const videoTopInContainer = rect.top - container.top;
+	let renderW, renderH;
+	const elRatio = mediaRect.width / mediaRect.height;
+	if (vRatio > elRatio) {
+		renderW = mediaRect.width;
+		renderH = mediaRect.width / vRatio;
+	} else {
+		renderH = mediaRect.height;
+		renderW = mediaRect.height * vRatio;
+	}
+
+	const contentLeft = mediaRect.left + (mediaRect.width - renderW) / 2;
+	const contentTop = mediaRect.top + (mediaRect.height - renderH) / 2;
+	const offsetX = contentLeft - container.left;
+	const offsetY = contentTop - container.top;
 
 	const scaleX = renderW / state.videoMeta.width;
 	const scaleY = renderH / state.videoMeta.height;
 
-	let relLeft = box.left - container.left - videoLeftInContainer - innerOffsetX;
-	let relTop = box.top - container.top - videoTopInContainer - innerOffsetY;
+	const box = dom.cropBox.getBoundingClientRect();
+	let relLeft = box.left - container.left - offsetX;
+	let relTop = box.top - container.top - offsetY;
 
 	let x = Math.round(relLeft / scaleX);
 	let y = Math.round(relTop / scaleY);
@@ -114,8 +261,10 @@ export function syncBoxToCropInputs() {
 export function onCropDrag(e) {
 	if (!state.dragContext) return;
 	e.preventDefault();
-	const dx = e.clientX - state.dragContext.startX;
-	const dy = e.clientY - state.dragContext.startY;
+	// e.clientX/Y are viewport coords; convert deltas to CSS coords
+	const zoom = getZoom();
+	const dx = (e.clientX - state.dragContext.startX) / zoom;
+	const dy = (e.clientY - state.dragContext.startY) / zoom;
 	let { handle, startW, startH, startL, startT } = state.dragContext;
 
 	if (handle === 'move') {
